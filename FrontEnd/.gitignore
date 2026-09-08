@@ -1,0 +1,6 @@
+/dist/
+/node_modules/
+/vite.stderr.log
+/vite.stdout.log
+/playwright-report/
+/test-results/

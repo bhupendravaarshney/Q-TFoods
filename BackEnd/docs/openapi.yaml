@@ -1,0 +1,1423 @@
+openapi: 3.1.0
+info:
+  title: Q & T FOODS LTD ERP + CRM API
+  version: 1.8.0
+  description: Session-authenticated, role- and context-scoped ERP API.
+servers:
+  - url: /api/v1
+
+paths:
+  /auth/csrf:
+    get:
+      summary: Start or refresh a browser session and CSRF token
+      security: []
+      responses:
+        "200":
+          description: CSRF token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [csrf_token]
+                    properties:
+                      csrf_token: { type: string }
+
+  /auth/login:
+    post:
+      summary: Authenticate a named ERP user
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          $ref: "#/components/responses/ErpSession"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /me:
+    get:
+      summary: Restore the authenticated ERP session
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          $ref: "#/components/responses/ErpSession"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
+  /auth/logout:
+    post:
+      summary: Invalidate the authenticated session
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: Session invalidated
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
+  /contexts:
+    get:
+      summary: List company and plant contexts assigned to the user
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Authorised contexts and current selection
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
+  /contexts/select:
+    post:
+      summary: Select an authorised company and plant
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [company_id]
+              properties:
+                company_id: { type: string, format: uuid }
+                plant_id: { type: [string, "null"], format: uuid }
+      responses:
+        "200":
+          $ref: "#/components/responses/ErpSession"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /work/tasks:
+    get:
+      summary: Get the role-aware queue for the selected context
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Assigned work items
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ContextRequired"
+
+  /sales/unsold-returns:
+    get:
+      summary: List unsold return cases in the active company and plant context
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [REQUESTED, IN_TRANSIT, PARTIALLY_RECEIVED, RETURN_QUARANTINE, DISPOSITION_REVIEW, LOSS_POSTED, FINANCE_RESOLVED]
+        - in: query
+          name: party_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: shipment_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: created_from
+          schema: { type: string, format: date }
+        - in: query
+          name: created_to
+          schema: { type: string, format: date }
+        - in: query
+          name: expected_from
+          schema: { type: string, format: date }
+        - in: query
+          name: expected_to
+          schema: { type: string, format: date }
+        - in: query
+          name: q
+          description: Search by reason, party code/name, or an exact case/shipment UUID.
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [created_at, -created_at, expected_return_date, -expected_return_date, status, -status]
+            default: -created_at
+      responses:
+        "200":
+          description: A scoped page of unsold return cases
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta, links]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/UnsoldReturnListItem" }
+                  meta: { $ref: "#/components/schemas/PaginationMeta" }
+                  links: { $ref: "#/components/schemas/PaginationLinks" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ContextRequired"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    post:
+      summary: Create an unsold-sales-return request in the active context
+      description: Optional company_id and plant_id values, when supplied, must match the selected session context. Customer, shipment, optional source invoice, shipment line, SKU, lot, UOM, and available return quantity are validated as one scoped reference chain.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [party_id, shipment_id, reason_code, lines]
+              properties:
+                company_id: { type: string, format: uuid }
+                plant_id: { type: string, format: uuid }
+                party_id: { type: string, format: uuid }
+                shipment_id: { type: string, format: uuid }
+                invoice_id: { type: [string, "null"], format: uuid }
+                reason_code: { type: string }
+                lines:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [shipment_line_id, sku_id, requested_quantity, uom_code]
+                    properties:
+                      shipment_line_id: { type: string, format: uuid }
+                      sku_id: { type: string, format: uuid }
+                      fg_lot_id: { type: [string, "null"], format: uuid }
+                      requested_quantity: { type: string }
+                      uom_code: { type: string }
+      responses:
+        "201":
+          description: Return case created
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ContextRequired"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /sales/unsold-returns/lookups:
+    get:
+      summary: Resolve return customers, shipments, invoices, shipped SKUs/lots, and quarantine positions
+      description: Every reference collection is constrained to the active company and plant context. Invoices and shipment lines require shipment_id; lots and return positions require sku_id.
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: query
+          name: party_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: shipment_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: sku_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: lot_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Scoped reference options for the return workflow
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/UnsoldReturnLookups" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ContextRequired"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /sales/unsold-return-approvals:
+    get:
+      operationId: listUnsoldReturnApprovals
+      summary: List loss-disposition approvals assigned to the active reviewer context
+      description: Requires RET-UNSOLD approval authority. Results are limited to unsold-return loss approvals in the selected company and plant; can_decide also reflects maker-checker and source-version validity.
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - in: query
+          name: status
+          schema: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: sort
+          schema: { type: string, enum: [created_at, -created_at, status, -status], default: -created_at }
+      responses:
+        "200":
+          description: Scoped approval queue
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta, links]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/UnsoldReturnApprovalListItem" }
+                  meta: { $ref: "#/components/schemas/PaginationMeta" }
+                  links: { $ref: "#/components/schemas/PaginationLinks" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/ContextRequired" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-return-approvals/{approvalId}:
+    get:
+      operationId: getUnsoldReturnApproval
+      summary: Get a scoped loss-disposition approval with lines and decision history
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/ApprovalId"
+      responses:
+        "200":
+          description: Approval detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/UnsoldReturnApprovalDetail" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ContextRequired" }
+
+  /sales/unsold-return-approvals/{approvalId}/approve:
+    post:
+      operationId: approveUnsoldReturnApproval
+      summary: Approve an unsold-return loss disposition
+      description: Requires approval authority, a reviewer different from the disposition maker, a pending approval version, and an unchanged source return case. Approval atomically moves positive restock, repack, and rework quantities from return quarantine to their configured plant outcome positions.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/ApprovalId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: [string, "null"], maxLength: 2000 }
+      responses:
+        "200":
+          description: Non-destroy outcome stock posted, disposition approved, and Finance loss posting unlocked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/UnsoldReturnApprovalDecisionResult" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-return-approvals/{approvalId}/reject:
+    post:
+      operationId: rejectUnsoldReturnApproval
+      summary: Reject an unsold-return loss disposition back to Quality
+      description: Rejection records the reviewer reason, increments the source case version, and returns the case to RETURN_QUARANTINE for corrected disposition and resubmission.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/ApprovalId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 2000 }
+      responses:
+        "200":
+          description: Disposition rejected and returned to Quality
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/UnsoldReturnApprovalDecisionResult" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-returns/{caseId}:
+    get:
+      summary: Get an unsold return case with evidence, inventory, and finance histories
+      description: Returns the scoped case, retained evidence metadata, invoice financials, immutable finance actions, stock movements, approval, and status history. Returns 404 outside the active company and plant context.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Scoped unsold return detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/UnsoldReturnDetail" }
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/ContextRequired"
+
+  /sales/unsold-returns/{caseId}/receive:
+    post:
+      summary: Confirm physical receipt into return quarantine
+      description: Validates the destination against the case company, plant, SKU, lot, UOM, and active return-quarantine location; updates the quarantine balance and emits one stock movement per submitted line in the same transaction. Replaying the same idempotency key and payload returns the first result.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lines]
+              properties:
+                lines:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [line_id, received_quantity, return_position_id]
+                    properties:
+                      line_id: { type: string, format: uuid }
+                      received_quantity: { type: string }
+                      return_position_id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Receipt and quarantine stock movements recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/UnsoldReturnCommandResult" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-returns/{caseId}/disposition:
+    post:
+      summary: Record Quality disposition for received quantities
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lines]
+              properties:
+                lines:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [line_id]
+                    properties:
+                      line_id: { type: string, format: uuid }
+                      restock_quantity: { type: string }
+                      repack_quantity: { type: string }
+                      rework_quantity: { type: string }
+                      destroy_quantity: { type: string }
+                      quality_reason_code: { type: string, maxLength: 64 }
+      responses:
+        "200":
+          description: Disposition recorded and approval requested
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/UnsoldReturnCommandResult" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-returns/{caseId}/post-loss:
+    post:
+      summary: Post approved destroy quantity as operational loss
+      description: Issues each approved destroy quantity out of its return-quarantine position, records the operational loss, and completes the case in one idempotent transaction.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uom_code]
+              properties:
+                uom_code: { type: string, maxLength: 16 }
+                cost_amount: { type: string }
+                currency: { type: string, minLength: 3, maxLength: 3, default: INR }
+      responses:
+        "200":
+          description: Approved loss posted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/UnsoldReturnCommandResult" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-returns/{caseId}/evidence:
+    post:
+      operationId: uploadUnsoldReturnEvidence
+      summary: Attach retained evidence to an unsold return case
+      description: Requires the dedicated evidence permission. The file is stored on a private disk, assigned a server-controlled retention date, SHA-256 hashed, linked to an upload audit event, and appended with the next case record version. Exact idempotent replay returns the first result.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [category, file]
+              properties:
+                category:
+                  type: string
+                  enum: [RETURN_CONFIRMATION, RECEIPT_PHOTO, QUALITY_REPORT, FINANCE_DOCUMENT, OTHER]
+                notes: { type: [string, "null"], maxLength: 2000 }
+                file:
+                  type: string
+                  format: binary
+                  description: PDF, JPEG, PNG, WebP, or plain text; 10 MiB by default.
+      responses:
+        "201":
+          description: Evidence stored and linked to the case and audit ledger
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/UnsoldReturnEvidenceUploadResult" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-returns/{caseId}/evidence/{evidenceId}:
+    get:
+      operationId: downloadUnsoldReturnEvidence
+      summary: Download scoped private evidence
+      description: Requires the dedicated evidence permission, returns 404 outside the active company and plant, forces attachment delivery with no-store headers, and records successful access in the audit ledger.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/EvidenceId"
+      responses:
+        "200":
+          description: Private evidence stream
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+            Cache-Control:
+              schema: { type: string }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ContextRequired" }
+
+  /sales/unsold-returns/{caseId}/finance/invoice:
+    post:
+      operationId: linkUnsoldReturnInvoice
+      summary: Confirm the source invoice for finance treatment
+      description: Requires the dedicated RET-UNSOLD finance permission and a LOSS_POSTED case. The invoice must belong to the same company, plant, customer, and shipment.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [invoice_id]
+              properties:
+                invoice_id: { type: string, format: uuid }
+                notes: { type: [string, "null"], maxLength: 2000 }
+      responses:
+        "200": { $ref: "#/components/responses/UnsoldReturnFinanceCommand" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-returns/{caseId}/finance/credit-note:
+    post:
+      operationId: postUnsoldReturnCreditNote
+      summary: Record the net credit note independently of tax
+      description: Available after source-invoice confirmation. The positive net amount cannot exceed the source invoice net amount.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [document_number, amount, currency]
+              properties:
+                document_number: { type: string, minLength: 1, maxLength: 80 }
+                amount: { type: string, pattern: '^\d+(?:\.\d{1,4})?$' }
+                currency: { type: string, minLength: 3, maxLength: 3 }
+                notes: { type: [string, "null"], maxLength: 2000 }
+      responses:
+        "200": { $ref: "#/components/responses/UnsoldReturnFinanceCommand" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-returns/{caseId}/finance/tax-adjustment:
+    post:
+      operationId: postUnsoldReturnTaxAdjustment
+      summary: Record the tax treatment as a separate finance action
+      description: Available after the net credit note. A zero amount records an explicit no-tax-adjustment review; the amount cannot exceed source-invoice tax.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [document_number, amount, currency, tax_code]
+              properties:
+                document_number: { type: string, minLength: 1, maxLength: 80 }
+                amount: { type: string, pattern: '^\d+(?:\.\d{1,4})?$' }
+                currency: { type: string, minLength: 3, maxLength: 3 }
+                tax_code: { type: string, minLength: 1, maxLength: 32 }
+                notes: { type: [string, "null"], maxLength: 2000 }
+      responses:
+        "200": { $ref: "#/components/responses/UnsoldReturnFinanceCommand" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-returns/{caseId}/finance/receivable-adjustment:
+    post:
+      operationId: applyUnsoldReturnReceivableAdjustment
+      summary: Apply the approved return credit to an open receivable
+      description: Final settlement for an open invoice. Atomically reduces invoice outstanding by net credit plus tax and resolves the return case.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/UnsoldReturnSettlement"
+      responses:
+        "200": { $ref: "#/components/responses/UnsoldReturnFinanceCommand" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-returns/{caseId}/finance/refund:
+    post:
+      operationId: postUnsoldReturnRefund
+      summary: Resolve a paid invoice through a customer refund
+      description: Final settlement for a fully paid source invoice. It records the refund reference and resolves the return case without changing receivables.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/UnsoldReturnSettlement"
+      responses:
+        "200": { $ref: "#/components/responses/UnsoldReturnFinanceCommand" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /sales/unsold-returns/{caseId}/finance/replacement:
+    post:
+      operationId: authorizeUnsoldReturnReplacement
+      summary: Resolve a paid invoice through replacement authorisation
+      description: Final settlement for a fully paid source invoice. It records the replacement reference and resolves the return case without changing receivables.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        $ref: "#/components/requestBodies/UnsoldReturnSettlement"
+      responses:
+        "200": { $ref: "#/components/responses/UnsoldReturnFinanceCommand" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: qt_foods_erp_session
+      description: Laravel session cookie; its deployed name may be environment-specific.
+  parameters:
+    CsrfToken:
+      in: header
+      name: X-CSRF-TOKEN
+      required: true
+      schema: { type: string }
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      description: A caller-generated key retained for safe replay of this exact command payload.
+      schema: { type: string, maxLength: 160 }
+    IfMatch:
+      in: header
+      name: If-Match
+      required: true
+      description: Current positive record version of the target aggregate, optionally expressed as a quoted or weak ETag.
+      schema: { type: string, pattern: '^(?:W/)?"?[1-9][0-9]*"?$' }
+    CaseId:
+      in: path
+      name: caseId
+      required: true
+      schema: { type: string, format: uuid }
+    ApprovalId:
+      in: path
+      name: approvalId
+      required: true
+      schema: { type: string, format: uuid }
+    EvidenceId:
+      in: path
+      name: evidenceId
+      required: true
+      schema: { type: string, format: uuid }
+  requestBodies:
+    UnsoldReturnSettlement:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [reference_number]
+            properties:
+              reference_number: { type: string, minLength: 1, maxLength: 80 }
+              notes: { type: [string, "null"], maxLength: 2000 }
+  responses:
+    ErpSession:
+      description: Authenticated user, authorised contexts, selected context, roles, and allowed screens
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                $ref: "#/components/schemas/ErpSession"
+    UnsoldReturnFinanceCommand:
+      description: Finance action recorded with the next return-case version
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: "#/components/schemas/UnsoldReturnFinanceCommandResult" }
+    Unauthenticated:
+      description: No valid authenticated session
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiErrorEnvelope" }
+    Forbidden:
+      description: The active role cannot access this screen or action
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiErrorEnvelope" }
+    ContextRequired:
+      description: An authorised context must be selected
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiErrorEnvelope" }
+    Conflict:
+      description: The active context is missing or the submitted record version is stale
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiErrorEnvelope" }
+    NotFound:
+      description: The requested resource does not exist in the active scope
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiErrorEnvelope" }
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiErrorEnvelope" }
+    TooManyRequests:
+      description: Login rate limit exceeded
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiErrorEnvelope" }
+  schemas:
+    ErpContext:
+      type: object
+      required: [company_id, company_name, plant_id, plant_name]
+      properties:
+        company_id: { type: string, format: uuid }
+        company_name: { type: string }
+        plant_id: { type: [string, "null"], format: uuid }
+        plant_name: { type: [string, "null"] }
+    ErpSession:
+      type: object
+      required: [user, roles, allowed_screens, allowed_actions, contexts, selected_context]
+      properties:
+        user:
+          type: object
+          required: [id, name, email]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            email: { type: string, format: email }
+        roles:
+          type: array
+          items: { type: string }
+        allowed_screens:
+          type: array
+          items: { type: string }
+        allowed_actions:
+          type: array
+          items: { type: string }
+        contexts:
+          type: array
+          items: { $ref: "#/components/schemas/ErpContext" }
+        selected_context:
+          oneOf:
+            - $ref: "#/components/schemas/ErpContext"
+            - type: "null"
+    EntityReference:
+      type: object
+      required: [id, code, name]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: [string, "null"] }
+        name: { type: [string, "null"] }
+    InvoiceLookup:
+      type: object
+      required: [id, number, status, currency, net_amount, tax_amount, gross_amount, outstanding_amount, issued_at, record_version]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string }
+        status: { type: string, enum: [POSTED, PAID] }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        net_amount: { type: string }
+        tax_amount: { type: string }
+        gross_amount: { type: string }
+        outstanding_amount: { type: string }
+        issued_at: { type: [string, "null"], format: date-time }
+        record_version: { type: integer, minimum: 1 }
+    UnsoldReturnLookups:
+      type: object
+      required: [parties, shipments, invoices, shipment_lines, skus, lots, return_positions]
+      properties:
+        parties:
+          type: array
+          items: { $ref: "#/components/schemas/EntityReference" }
+        shipments:
+          type: array
+          items:
+            type: object
+            required: [id, number, party, status, dispatched_at]
+            properties:
+              id: { type: string, format: uuid }
+              number: { type: string }
+              party: { $ref: "#/components/schemas/EntityReference" }
+              status: { type: string }
+              dispatched_at: { type: [string, "null"], format: date-time }
+        invoices:
+          type: array
+          items: { $ref: "#/components/schemas/InvoiceLookup" }
+        shipment_lines:
+          type: array
+          items:
+            type: object
+            required: [id, sku, fg_lot, shipped_quantity, returned_quantity, available_to_return, uom_code]
+            properties:
+              id: { type: string, format: uuid }
+              sku: { $ref: "#/components/schemas/EntityReference" }
+              fg_lot:
+                oneOf:
+                  - type: object
+                    required: [id, code, expiry_date]
+                    properties:
+                      id: { type: string, format: uuid }
+                      code: { type: [string, "null"] }
+                      expiry_date: { type: [string, "null"], format: date }
+                  - type: "null"
+              shipped_quantity: { type: string }
+              returned_quantity: { type: string }
+              available_to_return: { type: string }
+              uom_code: { type: string }
+        skus:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/EntityReference"
+              - type: object
+                required: [uom_code]
+                properties:
+                  uom_code: { type: string }
+        lots:
+          type: array
+          items:
+            type: object
+            required: [id, sku_id, code, manufacture_date, expiry_date]
+            properties:
+              id: { type: string, format: uuid }
+              sku_id: { type: string, format: uuid }
+              code: { type: string }
+              manufacture_date: { type: [string, "null"], format: date }
+              expiry_date: { type: [string, "null"], format: date }
+        return_positions:
+          type: array
+          items:
+            type: object
+            required: [id, sku_id, lot, location, quality_status, quantity, uom_code]
+            properties:
+              id: { type: string, format: uuid }
+              sku_id: { type: string, format: uuid }
+              lot:
+                type: object
+                required: [id, code]
+                properties:
+                  id: { type: string, format: uuid }
+                  code: { type: [string, "null"] }
+              location: { $ref: "#/components/schemas/EntityReference" }
+              quality_status: { type: string }
+              quantity: { type: string }
+              uom_code: { type: string }
+    UnsoldReturnListItem:
+      type: object
+      required: [id, party, shipment_id, status, reason_code, maker, record_version, line_count, quantities, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        party: { $ref: "#/components/schemas/EntityReference" }
+        shipment_id: { type: string, format: uuid }
+        status: { type: string }
+        reason_code: { type: string }
+        expected_return_date: { type: [string, "null"], format: date }
+        maker: { $ref: "#/components/schemas/EntityReference" }
+        record_version: { type: integer, minimum: 1 }
+        line_count: { type: integer, minimum: 0 }
+        quantities:
+          type: object
+          required: [requested, received, destroy]
+          properties:
+            requested: { type: string }
+            received: { type: string }
+            destroy: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    UnsoldReturnLine:
+      type: object
+      required: [id, sku, requested_quantity, received_quantity, restock_quantity, repack_quantity, rework_quantity, destroy_quantity, uom_code]
+      properties:
+        id: { type: string, format: uuid }
+        shipment_line_id: { type: [string, "null"], format: uuid }
+        sku: { $ref: "#/components/schemas/EntityReference" }
+        fg_lot:
+          oneOf:
+            - $ref: "#/components/schemas/EntityReference"
+            - type: "null"
+        requested_quantity: { type: string }
+        received_quantity: { type: string }
+        restock_quantity: { type: string }
+        repack_quantity: { type: string }
+        rework_quantity: { type: string }
+        destroy_quantity: { type: string }
+        uom_code: { type: string }
+        return_position:
+          type: [object, "null"]
+          properties:
+            id: { type: string, format: uuid }
+            location_id: { type: [string, "null"], format: uuid }
+            quality_status: { type: [string, "null"] }
+        quality_reason_code: { type: [string, "null"] }
+        quality_reviewer_id: { type: [string, "null"], format: uuid }
+    UnsoldReturnStatusHistory:
+      type: object
+      required: [id, from_status, to_status, record_version, actor, changed_at]
+      properties:
+        id: { type: string, format: uuid }
+        from_status: { type: [string, "null"] }
+        to_status: { type: string }
+        record_version: { type: integer, minimum: 1 }
+        actor: { $ref: "#/components/schemas/EntityReference" }
+        changed_at: { type: string, format: date-time }
+    UnsoldReturnApproval:
+      type: object
+      required: [id, entity_version, record_version, maker, rule_code, status, summary, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        entity_version: { type: integer, minimum: 1 }
+        record_version: { type: integer, minimum: 1 }
+        maker: { $ref: "#/components/schemas/EntityReference" }
+        rule_code: { type: string }
+        status: { type: string }
+        summary: { type: [object, "null"], additionalProperties: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    UnsoldReturnApprovalListItem:
+      type: object
+      required: [id, entity_type, entity_version, record_version, rule_code, status, maker, return_case, destroy_quantity, can_decide, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        entity_type: { type: string, const: unsold_return_loss }
+        entity_version: { type: integer, minimum: 1 }
+        record_version: { type: integer, minimum: 1 }
+        rule_code: { type: string, const: UNSOLD_RETURN_LOSS_APPROVAL }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        maker: { $ref: "#/components/schemas/EntityReference" }
+        return_case:
+          type: object
+          required: [id, status, record_version, party, reason_code, expected_return_date]
+          properties:
+            id: { type: string, format: uuid }
+            status: { type: string }
+            record_version: { type: integer, minimum: 1 }
+            party: { $ref: "#/components/schemas/EntityReference" }
+            reason_code: { type: string }
+            expected_return_date: { type: [string, "null"], format: date }
+        destroy_quantity: { type: string }
+        can_decide: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    UnsoldReturnApprovalLine:
+      type: object
+      required: [id, sku, received_quantity, restock_quantity, repack_quantity, rework_quantity, destroy_quantity, uom_code]
+      properties:
+        id: { type: string, format: uuid }
+        sku: { $ref: "#/components/schemas/EntityReference" }
+        fg_lot:
+          oneOf:
+            - $ref: "#/components/schemas/EntityReference"
+            - type: "null"
+        received_quantity: { type: string }
+        restock_quantity: { type: string }
+        repack_quantity: { type: string }
+        rework_quantity: { type: string }
+        destroy_quantity: { type: string }
+        uom_code: { type: string }
+        quality_reason_code: { type: [string, "null"] }
+    UnsoldReturnApprovalDecision:
+      type: object
+      required: [id, reviewer, decision, reason, decided_at]
+      properties:
+        id: { type: string, format: uuid }
+        reviewer: { $ref: "#/components/schemas/EntityReference" }
+        decision: { type: string, enum: [APPROVE, REJECT] }
+        reason: { type: [string, "null"] }
+        decided_at: { type: string, format: date-time }
+    UnsoldReturnApprovalDetail:
+      allOf:
+        - $ref: "#/components/schemas/UnsoldReturnApprovalListItem"
+        - type: object
+          required: [summary, lines, decisions]
+          properties:
+            summary: { type: [object, "null"], additionalProperties: true }
+            lines:
+              type: array
+              items: { $ref: "#/components/schemas/UnsoldReturnApprovalLine" }
+            decisions:
+              type: array
+              items: { $ref: "#/components/schemas/UnsoldReturnApprovalDecision" }
+    UnsoldReturnApprovalDecisionResult:
+      type: object
+      required: [approval_request_id, decision, approval_status, approval_record_version, return_case_id, case_status, case_record_version, stock_movement_ids]
+      properties:
+        approval_request_id: { type: string, format: uuid }
+        decision: { type: string, enum: [APPROVE, REJECT] }
+        approval_status: { type: string, enum: [APPROVED, REJECTED] }
+        approval_record_version: { type: integer, minimum: 2 }
+        return_case_id: { type: string, format: uuid }
+        case_status: { type: string, enum: [DISPOSITION_REVIEW, RETURN_QUARANTINE] }
+        case_record_version: { type: integer, minimum: 1 }
+        stock_movement_ids:
+          type: array
+          description: Approved non-destroy outcome movements; empty for rejection or an all-destroy disposition.
+          items: { type: string, format: uuid }
+    UnsoldReturnStockPositionReference:
+      type: object
+      required: [id, quality_status, location]
+      properties:
+        id: { type: string, format: uuid }
+        quality_status: { type: [string, "null"] }
+        location:
+          oneOf:
+            - $ref: "#/components/schemas/EntityReference"
+            - type: "null"
+    UnsoldReturnStockMovement:
+      type: object
+      required: [id, movement_type, source_version, quantity, uom_code, from_position, to_position, actor, reason_code, event_at, posted_at]
+      properties:
+        id: { type: string, format: uuid }
+        movement_type:
+          type: string
+          enum: [UNSOLD_RETURN_RECEIPT, UNSOLD_RETURN_RESTOCK, UNSOLD_RETURN_REPACK, UNSOLD_RETURN_REWORK, UNSOLD_RETURN_DESTROY]
+        source_version: { type: [integer, "null"], minimum: 1 }
+        quantity: { type: string }
+        uom_code: { type: string }
+        from_position:
+          oneOf:
+            - $ref: "#/components/schemas/UnsoldReturnStockPositionReference"
+            - type: "null"
+        to_position:
+          oneOf:
+            - $ref: "#/components/schemas/UnsoldReturnStockPositionReference"
+            - type: "null"
+        actor: { $ref: "#/components/schemas/EntityReference" }
+        reason_code: { type: [string, "null"] }
+        event_at: { type: string, format: date-time }
+        posted_at: { type: string, format: date-time }
+    UnsoldReturnFinanceAction:
+      type: object
+      required: [id, action_type, case_record_version, invoice_id, reference_number, amount, currency, tax_code, balance_before, balance_after, notes, actor, posted_at]
+      properties:
+        id: { type: string, format: uuid }
+        action_type:
+          type: string
+          enum: [INVOICE_LINK, CREDIT_NOTE, TAX_ADJUSTMENT, RECEIVABLE_ADJUSTMENT, REFUND, REPLACEMENT]
+        case_record_version: { type: integer, minimum: 1 }
+        invoice_id: { type: string, format: uuid }
+        reference_number: { type: string }
+        amount: { type: [string, "null"] }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        tax_code: { type: [string, "null"] }
+        balance_before: { type: [string, "null"] }
+        balance_after: { type: [string, "null"] }
+        notes: { type: [string, "null"] }
+        actor: { $ref: "#/components/schemas/EntityReference" }
+        posted_at: { type: string, format: date-time }
+    UnsoldReturnFinanceSummary:
+      type: object
+      required: [stage, credit_total, settlement_type, actions]
+      properties:
+        stage:
+          type: string
+          enum: [NOT_READY, NOT_STARTED, INVOICE_LINKED, CREDIT_NOTE_POSTED, TAX_REVIEWED, RESOLVED]
+        credit_total: { type: [string, "null"] }
+        settlement_type:
+          type: [string, "null"]
+          enum: [RECEIVABLE_ADJUSTMENT, REFUND, REPLACEMENT, null]
+        actions:
+          type: array
+          items: { $ref: "#/components/schemas/UnsoldReturnFinanceAction" }
+    UnsoldReturnFinanceCommandResult:
+      type: object
+      required: [return_case_id, finance_action_id, action_type, invoice_id, reference_number, currency, status, record_version]
+      properties:
+        return_case_id: { type: string, format: uuid }
+        finance_action_id: { type: string, format: uuid }
+        action_type:
+          type: string
+          enum: [INVOICE_LINK, CREDIT_NOTE, TAX_ADJUSTMENT, RECEIVABLE_ADJUSTMENT, REFUND, REPLACEMENT]
+        invoice_id: { type: string, format: uuid }
+        reference_number: { type: string }
+        amount: { type: string }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        tax_code: { type: string }
+        outstanding_amount: { type: string }
+        invoice_record_version: { type: integer, minimum: 1 }
+        status: { type: string, enum: [LOSS_POSTED, FINANCE_RESOLVED] }
+        record_version: { type: integer, minimum: 1 }
+    UnsoldReturnEvidence:
+      type: object
+      required: [id, category, case_record_version, original_name, mime_type, size_bytes, sha256, notes, retention_policy, retention_until, legal_hold, uploader, audit_event_id, uploaded_at]
+      properties:
+        id: { type: string, format: uuid }
+        category:
+          type: string
+          enum: [RETURN_CONFIRMATION, RECEIPT_PHOTO, QUALITY_REPORT, FINANCE_DOCUMENT, OTHER]
+        case_record_version: { type: integer, minimum: 1 }
+        original_name: { type: string, maxLength: 255 }
+        mime_type:
+          type: string
+          enum: [application/pdf, image/jpeg, image/png, image/webp, text/plain]
+        size_bytes: { type: integer, minimum: 1 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        notes: { type: [string, "null"], maxLength: 2000 }
+        retention_policy: { type: string, maxLength: 64 }
+        retention_until: { type: string, format: date }
+        legal_hold: { type: boolean }
+        uploader: { $ref: "#/components/schemas/EntityReference" }
+        audit_event_id: { type: string, format: uuid }
+        uploaded_at: { type: string, format: date-time }
+    UnsoldReturnEvidenceUploadResult:
+      type: object
+      required: [return_case_id, evidence_id, category, original_name, mime_type, size_bytes, sha256, notes, case_record_version, record_version, retention_policy, retention_until, legal_hold, audit_event_id, uploaded_at]
+      properties:
+        return_case_id: { type: string, format: uuid }
+        evidence_id: { type: string, format: uuid }
+        category:
+          type: string
+          enum: [RETURN_CONFIRMATION, RECEIPT_PHOTO, QUALITY_REPORT, FINANCE_DOCUMENT, OTHER]
+        original_name: { type: string, maxLength: 255 }
+        mime_type:
+          type: string
+          enum: [application/pdf, image/jpeg, image/png, image/webp, text/plain]
+        size_bytes: { type: integer, minimum: 1 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        notes: { type: [string, "null"], maxLength: 2000 }
+        case_record_version: { type: integer, minimum: 1 }
+        record_version: { type: integer, minimum: 1 }
+        retention_policy: { type: string, maxLength: 64 }
+        retention_until: { type: string, format: date }
+        legal_hold: { type: boolean }
+        audit_event_id: { type: string, format: uuid }
+        uploaded_at: { type: string, format: date-time }
+    UnsoldReturnDetail:
+      type: object
+      required: [id, company_id, plant_id, party, shipment_id, invoice_id, invoice, status, reason_code, maker, record_version, lines, status_history, stock_movements, evidence, finance, approval, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        company_id: { type: string, format: uuid }
+        plant_id: { type: string, format: uuid }
+        party: { $ref: "#/components/schemas/EntityReference" }
+        sales_order_id: { type: [string, "null"], format: uuid }
+        shipment_id: { type: string, format: uuid }
+        invoice_id: { type: [string, "null"], format: uuid }
+        invoice:
+          oneOf:
+            - $ref: "#/components/schemas/InvoiceLookup"
+            - type: "null"
+        status:
+          type: string
+          enum: [REQUESTED, IN_TRANSIT, PARTIALLY_RECEIVED, RETURN_QUARANTINE, DISPOSITION_REVIEW, LOSS_POSTED, FINANCE_RESOLVED]
+        reason_code: { type: string }
+        expected_return_date: { type: [string, "null"], format: date }
+        sales_note: { type: [string, "null"] }
+        maker: { $ref: "#/components/schemas/EntityReference" }
+        received_at: { type: [string, "null"], format: date-time }
+        loss_event_id: { type: [string, "null"], format: uuid }
+        record_version: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/UnsoldReturnLine" }
+        status_history:
+          type: array
+          items: { $ref: "#/components/schemas/UnsoldReturnStatusHistory" }
+        stock_movements:
+          type: array
+          items: { $ref: "#/components/schemas/UnsoldReturnStockMovement" }
+        evidence:
+          type: array
+          items: { $ref: "#/components/schemas/UnsoldReturnEvidence" }
+        finance: { $ref: "#/components/schemas/UnsoldReturnFinanceSummary" }
+        approval:
+          oneOf:
+            - $ref: "#/components/schemas/UnsoldReturnApproval"
+            - type: "null"
+    UnsoldReturnCommandResult:
+      type: object
+      required: [return_case_id, status, record_version]
+      properties:
+        return_case_id: { type: string, format: uuid }
+        status: { type: string }
+        record_version: { type: integer, minimum: 1 }
+        stock_movement_ids:
+          type: array
+          items: { type: string, format: uuid }
+        destruction_stock_movement_ids:
+          type: array
+          description: Outbound movements created for the approved destroyed quantities during loss posting.
+          items: { type: string, format: uuid }
+        approval_request_id: { type: string, format: uuid }
+        loss_event_id: { type: string, format: uuid }
+        loss_quantity: { type: string }
+    PaginationMeta:
+      type: object
+      required: [current_page, per_page, total, last_page, from, to]
+      properties:
+        current_page: { type: integer, minimum: 1 }
+        per_page: { type: integer, minimum: 1 }
+        total: { type: integer, minimum: 0 }
+        last_page: { type: integer, minimum: 1 }
+        from: { type: [integer, "null"] }
+        to: { type: [integer, "null"] }
+    PaginationLinks:
+      type: object
+      required: [first, last, prev, next]
+      properties:
+        first: { type: string }
+        last: { type: string }
+        prev: { type: [string, "null"] }
+        next: { type: [string, "null"] }
+    ApiErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            request_id: { type: string }
+            fields:
+              type: object
+              additionalProperties:
+                type: array
+                items: { type: string }

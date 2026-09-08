@@ -1,0 +1,78 @@
+services:
+  app:
+    build:
+      context: .
+    environment:
+      APP_NAME: Q & T FOODS ERP
+      APP_ENV: local
+      APP_KEY: "${APP_KEY:-base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}"
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: qtfoods
+      DB_USERNAME: qtfoods
+      DB_PASSWORD: qtfoods
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      SESSION_DRIVER: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      FILESYSTEM_DISK: local
+      QT_EVIDENCE_DISK: evidence
+      QT_EVIDENCE_RETENTION_YEARS: 7
+      QT_EVIDENCE_RETENTION_POLICY: UNSOLD_RETURN_7Y
+      QT_EVIDENCE_MAX_UPLOAD_KB: 10240
+    ports:
+      - "8000:8000"
+    volumes:
+      - qt_evidence:/var/www/html/storage/app/private/evidence
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: qtfoods
+      POSTGRES_USER: qtfoods
+      POSTGRES_PASSWORD: qtfoods
+    ports:
+      - "5432:5432"
+    volumes:
+      - qt_pg:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qtfoods -d qtfoods"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: qtfoods
+      MINIO_ROOT_PASSWORD: qtfoods-secret-change-me
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - qt_minio:/data
+
+volumes:
+  qt_pg:
+  qt_minio:
+  qt_evidence:

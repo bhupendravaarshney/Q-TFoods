@@ -1,0 +1,73 @@
+services:
+  app:
+    build:
+      context: .
+    command:
+      - sh
+      - -lc
+      - php artisan migrate:fresh --force && php artisan db:seed --force && php artisan serve --host=0.0.0.0 --port=8000
+    environment:
+      APP_NAME: Q & T FOODS ERP E2E
+      APP_ENV: testing
+      APP_KEY: base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:18000
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: debug
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: qtfoods_e2e
+      DB_USERNAME: qtfoods_e2e
+      DB_PASSWORD: qtfoods_e2e
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      SESSION_DRIVER: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      FILESYSTEM_DISK: local
+      QT_EVIDENCE_DISK: evidence
+      QT_EVIDENCE_RETENTION_YEARS: 7
+      QT_EVIDENCE_RETENTION_POLICY: UNSOLD_RETURN_7Y
+      QT_EVIDENCE_MAX_UPLOAD_KB: 10240
+    ports:
+      - "18000:8000"
+    volumes:
+      - e2e_evidence:/var/www/html/storage/app/private/evidence
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "php -r \"exit(@file_get_contents('http://127.0.0.1:8000/api/health') === false ? 1 : 0);\""]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+      start_period: 10s
+
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: qtfoods_e2e
+      POSTGRES_USER: qtfoods_e2e
+      POSTGRES_PASSWORD: qtfoods_e2e
+    volumes:
+      - e2e_pg:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qtfoods_e2e -d qtfoods_e2e"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:8
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  e2e_pg:
+  e2e_evidence:
