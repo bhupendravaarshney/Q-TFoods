@@ -1,8 +1,5 @@
-import { ModulePage } from '../components/ModulePage';
-import type { ScreenDefinition } from '../types/screen';
-
-const screen: ScreenDefinition = {"code": "FIN-SIM", "title": "Simulation workspace", "area": "Finance Supplement", "batch": "Supplement", "description": "Completely isolated training/simulation data with zero live posting."};
+import { FinanceP2Workspace } from '../components/FinanceP2Workspaces';
 
 export default function FIN_SIM() {
-  return <ModulePage screen={screen} />;
+  return <FinanceP2Workspace screen="FIN-SIM" />;
 }

@@ -29,6 +29,9 @@ final class UnsoldSalesReturnLookupQuery
         return DB::table('parties')
             ->where('company_id', $scope['company_id'])
             ->where('status', 'ACTIVE')
+            ->whereExists(fn (Builder $role) => $role->from('party_roles as party_role')
+                ->whereColumn('party_role.party_id', 'parties.id')
+                ->where('party_role.role_code', 'CUSTOMER'))
             ->when($filters['q'] ?? null, function (Builder $query, string $search) {
                 $pattern = '%'.strtolower(trim($search)).'%';
                 $query->where(fn (Builder $query) => $query
@@ -58,6 +61,9 @@ final class UnsoldSalesReturnLookupQuery
             ->whereNotNull('shipment.shipment_number')
             ->whereNotIn('shipment.status', ['DRAFT', 'CANCELLED'])
             ->where('party.status', 'ACTIVE')
+            ->whereExists(fn (Builder $role) => $role->from('party_roles as party_role')
+                ->whereColumn('party_role.party_id', 'party.id')
+                ->where('party_role.role_code', 'CUSTOMER'))
             ->when($filters['party_id'] ?? null, fn (Builder $query, string $id) => $query->where('shipment.party_id', $id))
             ->when($filters['q'] ?? null, function (Builder $query, string $search) {
                 $pattern = '%'.strtolower(trim($search)).'%';

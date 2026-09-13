@@ -3,6 +3,7 @@ import { screenRegistry } from '../data/screenRegistry';
 import type { ErpSession } from '../types/session';
 import { ErpSessionContext } from './ErpSessionContext';
 import { pageMap } from './pageMap';
+import { AccountSecurityPanel } from '../components/AccountSecurityPanel';
 
 const areaOrder = [
   'Foundation / Admin',
@@ -31,11 +32,13 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
   const [screenCode, setScreenCode] = useState(defaultCode ?? '');
   const [search, setSearch] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [securityOpen, setSecurityOpen] = useState(false);
 
   useEffect(() => {
     const syncHash = () => {
-      const requested = window.location.hash.replace(/^#/, '');
-      const permitted = requested && requested in pageMap && allowedScreens.has(requested);
+      const route = window.location.hash.replace(/^#/, '');
+      const requested = route.split('?', 1)[0];
+      const permitted = Boolean(requested && requested in pageMap && allowedScreens.has(requested));
       const resolved = permitted ? requested : defaultCode;
 
       setScreenCode(resolved ?? '');
@@ -116,6 +119,7 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
           </button>
           <div className="spacer"></div>
           <span className="prototype-pill role-pill">ROLE-SCOPED SESSION</span>
+          <button className="security-button" type="button" aria-label="Account security" onClick={() => setSecurityOpen(true)}><span>Security</span><b>{session.security?.mfa_enabled ? 'MFA ON' : 'MFA OFF'}</b></button>
           {allowedScreens.has('ADM-HELP') && <button className="icon" aria-label="Open help" onClick={() => go('ADM-HELP')}>?</button>}
         </header>
 
@@ -127,6 +131,7 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
           </ErpSessionContext.Provider>
         </main>
       </section>
+      {securityOpen && <AccountSecurityPanel session={session} onClose={() => setSecurityOpen(false)} />}
     </div>
   );
 }

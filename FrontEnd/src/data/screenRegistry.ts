@@ -6,7 +6,7 @@ export const screenRegistry: ScreenDefinition[] = [
     "title": "Secure Sign In",
     "area": "Foundation / Admin",
     "batch": "B04",
-    "description": "Named user authentication with secure session and MFA-ready flow."
+    "description": "Verified named-user authentication, recovery links, TOTP challenge, and revocable device session."
   },
   {
     "code": "ACC-CTX",
@@ -27,35 +27,35 @@ export const screenRegistry: ScreenDefinition[] = [
     "title": "Organisation Setup",
     "area": "Foundation / Admin",
     "batch": "B04",
-    "description": "Organisation Setup workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Lifecycle-safe company and plant administration with scoped, versioned and audited writes."
   },
   {
     "code": "ADM-LOC",
     "title": "Locations & Hierarchy",
     "area": "Foundation / Admin",
     "batch": "B04",
-    "description": "Locations & Hierarchy workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Plant-scoped warehouse hierarchy with parent, type, stock and lifecycle safeguards."
   },
   {
     "code": "ADM-USER",
-    "title": "Users & Invitations",
+    "title": "Users & Assignments",
     "area": "Foundation / Admin",
     "batch": "B04",
-    "description": "Users & Invitations workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Invitation-first identity, verification/MFA state, device controls, and effective-dated plant roles."
   },
   {
     "code": "ADM-ROLE",
     "title": "Roles & Permissions",
     "area": "Foundation / Admin",
     "batch": "B04",
-    "description": "Roles & Permissions workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Protected system authority and company-scoped custom roles, permissions and matrices."
   },
   {
     "code": "ADM-RULE",
     "title": "Approval Rules",
     "area": "Foundation / Admin",
     "batch": "B04",
-    "description": "Approval Rules workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Versioned plant approval policies, authority bands, delegated authority and SLA escalation."
   },
   {
     "code": "ADM-AUD",
@@ -90,28 +90,28 @@ export const screenRegistry: ScreenDefinition[] = [
     "title": "Parties",
     "area": "Master / Procurement / Stock",
     "batch": "B05-B07",
-    "description": "Parties workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Company-scoped party identities, roles, addresses, contacts, tax registrations, commercial terms, and controlled lifecycle."
   },
   {
     "code": "MD-BRAND",
     "title": "Brands & Agreements",
     "area": "Master / Procurement / Stock",
     "batch": "B05-B07",
-    "description": "Brands & Agreements workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Company brands and effective-dated party agreements with governed lifecycle and audit evidence."
   },
   {
     "code": "MD-ITEM",
     "title": "Items & UOM",
     "area": "Master / Procurement / Stock",
     "batch": "B05-B07",
-    "description": "Items & UOM workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Catalog items, lot policy, base units, and explicit UOM conversions above stock-bearing SKUs."
   },
   {
     "code": "MD-SKU",
     "title": "SKUs & Packs",
     "area": "Master / Procurement / Stock",
     "batch": "B05-B07",
-    "description": "SKUs & Packs workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Stock-bearing SKUs, barcodes, selling units, packs, and inventory-safe lifecycle controls."
   },
   {
     "code": "PUR-REQ",
@@ -138,36 +138,36 @@ export const screenRegistry: ScreenDefinition[] = [
     "code": "INB-GATE",
     "title": "Gate Entry",
     "area": "Master / Procurement / Stock",
-    "batch": "B05-B07",
-    "description": "Gate Entry workflow with server-authoritative scope, state, version, approval and audit."
+    "batch": "P1 Procure-to-pay",
+    "description": "Live supplier-arrival register linked to issued purchase orders, plant scope, concurrency, cancellation evidence and audit."
   },
   {
     "code": "INB-GRN",
     "title": "GRN / Receipt",
     "area": "Master / Procurement / Stock",
-    "batch": "B05-B07",
-    "description": "GRN / Receipt workflow with server-authoritative scope, state, version, approval and audit."
+    "batch": "P1 Procure-to-pay",
+    "description": "Partial goods receipts with purchase lots, Quality Hold stock posting, remaining-quantity control and incoming-QC handoff."
   },
   {
     "code": "QC-IN",
     "title": "Incoming QC",
     "area": "Master / Procurement / Stock",
-    "batch": "B05-B07",
-    "description": "Incoming QC workflow with server-authoritative scope, state, version, approval and audit."
+    "batch": "P1 Procure-to-pay",
+    "description": "Incoming lot inspection that atomically splits held quantities into released and rejected inventory movements."
   },
   {
     "code": "INB-RETURN",
     "title": "Supplier Returns",
     "area": "Master / Procurement / Stock",
-    "batch": "B05-B07",
-    "description": "Supplier Returns workflow with server-authoritative scope, state, version, approval and audit."
+    "batch": "P1 Procure-to-pay",
+    "description": "Controlled supplier returns limited to QC-rejected on-hand lots with immutable stock-issue evidence."
   },
   {
     "code": "INV-STK",
     "title": "Stock & Lots",
     "area": "Master / Procurement / Stock",
-    "batch": "B05-B07",
-    "description": "Stock & Lots workflow with server-authoritative scope, state, version, approval and audit."
+    "batch": "B11",
+    "description": "Live owner, lot, expiry, quality, availability and reservation registers with scoped optimistic commands."
   },
   {
     "code": "INV-ISS",
@@ -202,112 +202,112 @@ export const screenRegistry: ScreenDefinition[] = [
     "title": "Recipes / BOM",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Recipes / BOM workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Versioned recipes with effective yields, active output/component SKUs, and ordered BOM lines."
   },
   {
     "code": "MD-ROUTE",
-    "title": "Routes",
+    "title": "Production Routes",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Routes workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Item production routes with ordered work-centre operations and governed standard times."
   },
   {
     "code": "MD-SPEC",
     "title": "Quality Standards",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Quality Standards workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Effective item/SKU standards with typed parameters, test methods, and acceptance limits."
   },
   {
     "code": "PLAN-DEM",
-    "title": "Demand",
+    "title": "Demand Planning",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Demand workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Time-phased manufactured-SKU demand with governed release into material planning."
   },
   {
     "code": "PLAN-MRP",
     "title": "MRP",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "MRP workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Effective-recipe explosion with inventory netting and immutable material-shortage snapshots."
   },
   {
     "code": "PLAN-SCH",
     "title": "Production Schedule",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Production Schedule workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Finite work-centre capacity scheduling with atomic FEFO material reservation and release."
   },
   {
     "code": "PRO-ORDER",
     "title": "Production Orders",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Production Orders workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Schedule-to-batch release with FEFO material issue, route snapshots, controlled completion and audit."
   },
   {
     "code": "PRO-STAGE",
     "title": "Stage Execution",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Stage Execution workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Sequential route-stage start and completion with actual work-centre time and immutable events."
   },
   {
     "code": "PRO-LOSS",
     "title": "Yield / Loss / Rework",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Yield / Loss / Rework workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Full planned-output accounting across good yield, process loss and resolved rework."
   },
   {
     "code": "QC-LAB",
     "title": "Lab & Samples",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Lab & Samples workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Versioned specification sampling, parameter evaluation and automatic deviation creation."
   },
   {
     "code": "QC-SAFE",
     "title": "Safety / Deviations",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Safety / Deviations workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Food-safety holds, corrective-action deviations and gated batch quality release."
   },
   {
     "code": "PACK-ART",
     "title": "Artwork & Coding",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Artwork & Coding workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Controlled label revisions, effective dates, barcodes and batch-code templates."
   },
   {
     "code": "PACK-RUN",
     "title": "Packing Run",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Packing Run workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Quality-released output packing with artwork validation, finished-stock receipt and genealogy."
   },
   {
     "code": "FG-LOT",
     "title": "Finished Goods",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Finished Goods workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Finished-lot stock, coding, production provenance and upstream input-lot visibility."
   },
   {
     "code": "TRACE-CASE",
     "title": "Trace / Recall",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Trace / Recall workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Bidirectional lot genealogy, customer exposure, recall containment and closure evidence."
   },
   {
     "code": "COST-BATCH",
     "title": "Batch Cost",
     "area": "Manufacturing / Quality",
     "batch": "B08-B12",
-    "description": "Batch Cost workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Immutable batch material, conversion, yield, unit-cost and plan-to-actual variance snapshots."
   },
   {
     "code": "CRM-LEAD",
@@ -390,8 +390,8 @@ export const screenRegistry: ScreenDefinition[] = [
     "code": "FIN-AP",
     "title": "Payables",
     "area": "Finance / Support",
-    "batch": "B18-B21",
-    "description": "Payables workflow with server-authoritative scope, state, version, approval and audit."
+    "batch": "P1 Procure-to-pay",
+    "description": "Three-way matched supplier invoices, calculated taxes, maker-checker payment proposals, settlement allocation and bank reconciliation."
   },
   {
     "code": "FIN-EXP",

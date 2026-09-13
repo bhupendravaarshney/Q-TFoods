@@ -13,7 +13,7 @@ final class UnsoldSalesReturnApprovalQuery
 {
     public const STATUSES = ['PENDING', 'APPROVED', 'REJECTED'];
 
-    public function paginate(array $scope, array $filters, string $reviewerId): array
+    public function paginate(array $scope, array $filters, string $reviewerId, array $permissions): array
     {
         $query = $this->base($scope);
         $this->applyFilters($query, $filters);
@@ -31,7 +31,7 @@ final class UnsoldSalesReturnApprovalQuery
 
         return [
             'data' => collect($paginator->items())
-                ->map(fn (object $approval) => $this->item($approval, $reviewerId))
+                ->map(fn (object $approval) => $this->item($approval, $reviewerId, $permissions))
                 ->values()
                 ->all(),
             'meta' => [
@@ -51,7 +51,7 @@ final class UnsoldSalesReturnApprovalQuery
         ];
     }
 
-    public function find(string $approvalId, array $scope, string $reviewerId): ?array
+    public function find(string $approvalId, array $scope, string $reviewerId, array $permissions): ?array
     {
         $approval = $this->base($scope)->where('approval.id', $approvalId)->first();
         if (! $approval) {
@@ -115,6 +115,9 @@ final class UnsoldSalesReturnApprovalQuery
                 'reviewer.name as reviewer_name',
                 'decision.decision',
                 'decision.reason',
+                'decision.authority_source',
+                'decision.authority_permission',
+                'decision.delegation_id',
                 'decision.created_at',
             ])
             ->map(fn (object $decision) => [
@@ -122,13 +125,18 @@ final class UnsoldSalesReturnApprovalQuery
                 'reviewer' => $this->reference($decision->reviewer_id, null, $decision->reviewer_name),
                 'decision' => $decision->decision,
                 'reason' => $decision->reason,
+                'authority_source' => $decision->authority_source,
+                'authority_permission' => $decision->authority_permission,
+                'delegation_id' => $decision->delegation_id === null
+                    ? null
+                    : (string) $decision->delegation_id,
                 'decided_at' => $this->timestamp($decision->created_at),
             ])
             ->values()
             ->all();
 
         return [
-            ...$this->item($approval, $reviewerId),
+            ...$this->item($approval, $reviewerId, $permissions),
             'summary' => $this->json($approval->summary_json),
             'lines' => $lines,
             'decisions' => $decisions,
@@ -168,6 +176,21 @@ final class UnsoldSalesReturnApprovalQuery
                 'approval.rule_code',
                 'approval.status',
                 'approval.summary_json',
+                'approval.approval_rule_id',
+                'approval.approval_rule_version',
+                'approval.approval_rule_band_id',
+                'approval.rule_name_snapshot',
+                'approval.band_name_snapshot',
+                'approval.authority_value',
+                'approval.authority_uom',
+                'approval.required_permission',
+                'approval.escalation_permission',
+                'approval.due_at',
+                'approval.escalate_at',
+                'approval.escalated_at',
+                'approval.escalation_count',
+                'approval.resubmission_of_id',
+                'approval.submission_number',
                 'approval.created_at',
                 'approval.updated_at',
                 'return_case.status as case_status',
@@ -223,8 +246,11 @@ final class UnsoldSalesReturnApprovalQuery
         return [$columns[$field], $direction];
     }
 
-    private function item(object $approval, string $reviewerId): array
+    private function item(object $approval, string $reviewerId, array $permissions): array
     {
+        $requiredPermission = $approval->required_permission
+            ?: 'ACTION:RET-UNSOLD:APPROVE';
+
         return [
             'id' => (string) $approval->id,
             'entity_type' => $approval->entity_type,
@@ -246,10 +272,36 @@ final class UnsoldSalesReturnApprovalQuery
                 'expected_return_date' => $approval->expected_return_date,
             ],
             'destroy_quantity' => (string) $approval->destroy_quantity,
+            'authority' => [
+                'rule_id' => $approval->approval_rule_id === null
+                    ? null
+                    : (string) $approval->approval_rule_id,
+                'rule_version' => $approval->approval_rule_version === null
+                    ? null
+                    : (int) $approval->approval_rule_version,
+                'rule_name' => $approval->rule_name_snapshot,
+                'band_id' => $approval->approval_rule_band_id === null
+                    ? null
+                    : (string) $approval->approval_rule_band_id,
+                'band_name' => $approval->band_name_snapshot,
+                'value' => $approval->authority_value === null ? null : (string) $approval->authority_value,
+                'uom' => $approval->authority_uom,
+                'required_permission' => $requiredPermission,
+                'escalation_permission' => $approval->escalation_permission,
+            ],
+            'submission_number' => (int) $approval->submission_number,
+            'resubmission_of_id' => $approval->resubmission_of_id === null
+                ? null
+                : (string) $approval->resubmission_of_id,
+            'due_at' => $this->timestamp($approval->due_at),
+            'escalate_at' => $this->timestamp($approval->escalate_at),
+            'escalated_at' => $this->timestamp($approval->escalated_at),
+            'escalation_count' => (int) $approval->escalation_count,
             'can_decide' => $approval->status === 'PENDING'
                 && (string) $approval->maker_id !== $reviewerId
                 && $approval->case_status === 'DISPOSITION_REVIEW'
-                && (int) $approval->case_record_version === (int) $approval->entity_version,
+                && (int) $approval->case_record_version === (int) $approval->entity_version
+                && in_array($requiredPermission, $permissions, true),
             'created_at' => $this->timestamp($approval->created_at),
             'updated_at' => $this->timestamp($approval->updated_at),
         ];

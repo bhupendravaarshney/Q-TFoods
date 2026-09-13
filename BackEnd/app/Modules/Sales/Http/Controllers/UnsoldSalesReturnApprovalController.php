@@ -2,10 +2,13 @@
 
 namespace App\Modules\Sales\Http\Controllers;
 
+use App\Modules\Foundation\Application\SessionService;
+use App\Modules\Foundation\Domain\User;
 use App\Modules\Sales\Application\UnsoldSalesReturnApprovalQuery;
 use App\Modules\Sales\Application\UnsoldSalesReturnApprovalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -15,6 +18,7 @@ final class UnsoldSalesReturnApprovalController
     public function __construct(
         private readonly UnsoldSalesReturnApprovalQuery $query,
         private readonly UnsoldSalesReturnApprovalService $service,
+        private readonly SessionService $sessions,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -32,19 +36,24 @@ final class UnsoldSalesReturnApprovalController
             ])],
         ]);
 
+        $permissions = $this->approvalPermissions($request);
+
         return response()->json($this->query->paginate(
             $this->selectedContext($request),
             $filters,
-            (string) $request->user()->id
+            (string) $request->user()->id,
+            $permissions
         ));
     }
 
     public function show(string $approvalId, Request $request): JsonResponse
     {
+        $permissions = $this->approvalPermissions($request);
         $approval = $this->query->find(
             $approvalId,
             $this->selectedContext($request),
-            (string) $request->user()->id
+            (string) $request->user()->id,
+            $permissions
         );
 
         abort_if(! $approval, 404, 'Unsold return approval request not found.');
@@ -73,6 +82,7 @@ final class UnsoldSalesReturnApprovalController
         $validated['company_id'] = $context['company_id'];
         $validated['plant_id'] = $context['plant_id'];
         $validated['actor_id'] = (string) $request->user()->id;
+        $validated['permissions'] = $this->approvalPermissions($request);
         $validated['expected_version'] = $this->expectedVersion($request);
         $validated['idempotency_key'] = $this->idempotencyKey($request);
         $validated['correlation_id'] = $this->correlationId($request);
@@ -100,6 +110,20 @@ final class UnsoldSalesReturnApprovalController
             'company_id' => $context['company_id'],
             'plant_id' => $context['plant_id'],
         ];
+    }
+
+    private function approvalPermissions(Request $request): array
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $permissions = $this->sessions->permissions($user, $request);
+        if (! collect($permissions)->contains(
+            fn (string $permission) => str_starts_with($permission, 'ACTION:RET-UNSOLD:APPROVE')
+        )) {
+            throw new AuthorizationException('You are not authorised to review unsold-return approvals.');
+        }
+
+        return $permissions;
     }
 
     private function expectedVersion(Request $request): int

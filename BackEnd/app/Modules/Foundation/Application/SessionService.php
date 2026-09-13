@@ -3,6 +3,7 @@
 namespace App\Modules\Foundation\Application;
 
 use App\Modules\Foundation\Domain\User;
+use App\Shared\Approval\ApprovalAuthorityService;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -11,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 
 final class SessionService
 {
+    public function __construct(private readonly ApprovalAuthorityService $approvalAuthority) {}
+
     public function payload(User $user, Request $request): array
     {
         $contexts = $this->contexts($user);
@@ -23,9 +26,17 @@ final class SessionService
                 'name' => $user->name,
                 'email' => $user->email,
             ],
+            'security' => [
+                'email_verified' => $user->email_verified_at !== null,
+                'mfa_enabled' => $user->mfa_enabled_at !== null,
+                'password_changed_at' => $this->timestamp($user->password_changed_at),
+                'last_login_at' => $this->timestamp($user->last_login_at),
+                'current_session_id' => $request->session()->get('identity.device_session_id'),
+            ],
             'roles' => $access['roles'],
             'allowed_screens' => $access['screens'],
             'allowed_actions' => $access['actions'],
+            'delegated_authorities' => $access['delegations'],
             'contexts' => $contexts->values()->all(),
             'selected_context' => $selectedContext,
         ];
@@ -78,6 +89,13 @@ final class SessionService
             && in_array($permission, $this->access($user, $context)['permissions'], true);
     }
 
+    public function permissions(User $user, Request $request): array
+    {
+        $context = $this->currentContext($user, $request);
+
+        return $context === null ? [] : $this->access($user, $context)['permissions'];
+    }
+
     private function contexts(User $user): Collection
     {
         return $this->activeAssignments($user)
@@ -127,7 +145,9 @@ final class SessionService
         $query = $this->activeAssignments($user)
             ->join('roles as r', 'r.id', '=', 'ra.role_id')
             ->join('role_permissions as rp', 'rp.role_id', '=', 'r.id')
-            ->join('permissions as p', 'p.id', '=', 'rp.permission_id');
+            ->join('permissions as p', 'p.id', '=', 'rp.permission_id')
+            ->where('r.status', 'ACTIVE')
+            ->where('p.status', 'ACTIVE');
 
         if ($context) {
             $query
@@ -141,7 +161,14 @@ final class SessionService
 
         $rows = $query->select(['r.code as role_code', 'p.code as permission_code'])->distinct()->get();
 
-        $permissions = $rows->pluck('permission_code')->unique()->sort()->values();
+        $delegations = $context === null ? [] : $this->approvalAuthority->activeDelegations(
+            (string) $user->id,
+            $context['company_id'],
+            $context['plant_id']
+        );
+        $permissions = $rows->pluck('permission_code')
+            ->merge(collect($delegations)->pluck('permission_code'))
+            ->unique()->sort()->values();
 
         $screens = $permissions
             ->filter(fn (string $permission) => str_starts_with($permission, 'SCREEN:') && str_ends_with($permission, ':VIEW'))
@@ -161,15 +188,22 @@ final class SessionService
             'screens' => $screens,
             'actions' => $actions,
             'permissions' => $permissions->all(),
+            'delegations' => $delegations,
         ];
     }
 
     private function activeAssignments(User $user): Builder
     {
         return DB::table('role_assignments as ra')
+            ->when($user->status !== 'ACTIVE', fn (Builder $query) => $query->whereRaw('1 = 0'))
             ->where('ra.user_id', $user->id)
             ->where('ra.is_active', true)
             ->where(fn (Builder $q) => $q->whereNull('ra.effective_from')->orWhere('ra.effective_from', '<=', now()))
             ->where(fn (Builder $q) => $q->whereNull('ra.effective_to')->orWhere('ra.effective_to', '>', now()));
+    }
+
+    private function timestamp(mixed $value): ?string
+    {
+        return $value === null ? null : \Carbon\CarbonImmutable::parse($value)->toISOString();
     }
 }

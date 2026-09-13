@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Modules\Foundation\Domain\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 final class UnsoldReturnLookupEndpointTest extends TestCase
@@ -87,6 +88,19 @@ final class UnsoldReturnLookupEndpointTest extends TestCase
             ->assertJsonCount(0, 'data.invoices')
             ->assertJsonCount(0, 'data.shipment_lines')
             ->assertJsonMissing(['id' => self::FINANCE_SHIPMENT_ID]);
+    }
+
+    public function test_only_active_customer_role_parties_and_shipments_are_offered(): void
+    {
+        DB::table('party_roles')->where('party_id', self::PARTY_ID)
+            ->update(['role_code' => 'SUPPLIER']);
+
+        $this->getJson('/api/v1/sales/unsold-returns/lookups')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.parties')
+            ->assertJsonCount(1, 'data.shipments')
+            ->assertJsonMissing(['id' => self::PARTY_ID])
+            ->assertJsonMissing(['id' => self::SHIPMENT_ID]);
     }
 
     public function test_lookup_filters_are_validated(): void

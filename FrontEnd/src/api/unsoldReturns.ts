@@ -179,6 +179,23 @@ export type UnsoldReturnApprovalListItem = {
     expected_return_date: string | null;
   };
   destroy_quantity: string;
+  authority: {
+    rule_id: string | null;
+    rule_version: number | null;
+    rule_name: string | null;
+    band_id: string | null;
+    band_name: string | null;
+    value: string | null;
+    uom: string | null;
+    required_permission: string;
+    escalation_permission: string | null;
+  };
+  submission_number: number;
+  resubmission_of_id: string | null;
+  due_at: string | null;
+  escalate_at: string | null;
+  escalated_at: string | null;
+  escalation_count: number;
   can_decide: boolean;
   created_at: string;
   updated_at: string;
@@ -203,6 +220,9 @@ export type UnsoldReturnApprovalDetail = UnsoldReturnApprovalListItem & {
     reviewer: LookupReference;
     decision: string;
     reason: string | null;
+    authority_source: 'DIRECT' | 'DELEGATION' | 'INTERNAL' | null;
+    authority_permission: string | null;
+    delegation_id: string | null;
     decided_at: string;
   }>;
 };
@@ -222,6 +242,9 @@ export type UnsoldReturnApprovalDecisionResult = {
   case_status: string;
   case_record_version: number;
   stock_movement_ids: string[];
+  authority_source: 'DIRECT' | 'DELEGATION';
+  authority_permission: string;
+  delegation_id: string | null;
 };
 
 export type UnsoldReturnStockMovement = {

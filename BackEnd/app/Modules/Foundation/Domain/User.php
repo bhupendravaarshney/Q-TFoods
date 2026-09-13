@@ -13,11 +13,22 @@ final class User extends Authenticatable
 
     protected $guarded = [];
 
-    protected $hidden = ['password_hash'];
+    protected $hidden = ['password_hash', 'mfa_secret'];
 
     protected $authPasswordName = 'password_hash';
 
     protected $rememberTokenName = null;
+
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'immutable_datetime',
+            'password_changed_at' => 'immutable_datetime',
+            'last_login_at' => 'immutable_datetime',
+            'mfa_enabled_at' => 'immutable_datetime',
+            'record_version' => 'integer',
+        ];
+    }
 
     public function roleAssignments(): HasMany
     {

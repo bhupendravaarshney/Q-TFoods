@@ -1,8 +1,5 @@
-import { ModulePage } from '../components/ModulePage';
-import type { ScreenDefinition } from '../types/screen';
-
-const screen: ScreenDefinition = {"code": "ASSET-REG", "title": "Assets", "area": "Finance / Support", "batch": "B18-B21", "description": "Assets workflow with server-authoritative scope, state, version, approval and audit."};
+import { FinanceP2Workspace } from '../components/FinanceP2Workspaces';
 
 export default function ASSET_REG() {
-  return <ModulePage screen={screen} />;
+  return <FinanceP2Workspace screen="ASSET-REG" />;
 }

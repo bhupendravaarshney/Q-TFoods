@@ -1,60 +1,234 @@
-import { useEffect, useState } from 'react';
-import { apiRequest, type ApiError } from '../api/client';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { isApiError } from '../api/client';
+import {
+  claimWorkItem,
+  completeWorkItem,
+  listWorkItems,
+  type WorkItem,
+  type WorkItemKind,
+  type WorkQueue,
+  type WorkQueueFilters,
+} from '../api/workQueue';
+import { useErpSession } from '../app/ErpSessionContext';
 import { PageHeader } from '../components/PageHeader';
 
-type WorkTask = {
-  id: string;
-  title: string;
-  priority: string;
-  owner: string;
-};
+type AssignmentFilter = 'ALL' | 'MINE' | 'UNASSIGNED';
 
 export default function WRK_HOME() {
-  const [tasks, setTasks] = useState<WorkTask[]>([]);
+  const session = useErpSession();
+  const contextKey = `${session.selected_context?.company_id}:${session.selected_context?.plant_id}`;
+  const [queue, setQueue] = useState<WorkQueue | null>(null);
+  const [kind, setKind] = useState<'' | WorkItemKind>('');
+  const [assignment, setAssignment] = useState<AssignmentFilter>('ALL');
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [searchDraft, setSearchDraft] = useState('');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [busyItemId, setBusyItemId] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    const filters: WorkQueueFilters = {
+      assignment,
+      overdue: overdueOnly,
+      q: search || undefined,
+    };
+    if (kind) filters.kind = kind;
+
+    try {
+      setQueue(await listWorkItems(filters));
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : 'Unable to load the work queue.');
+    } finally {
+      setLoading(false);
+    }
+  }, [assignment, contextKey, kind, overdueOnly, search]);
 
   useEffect(() => {
-    let active = true;
+    setQueue(null);
+  }, [contextKey]);
 
-    apiRequest<{ data: WorkTask[] }>('/api/v1/work/tasks')
-      .then((response) => {
-        if (active) setTasks(response.data);
-      })
-      .catch((caught: ApiError) => {
-        if (active) setError(caught.message ?? 'Unable to load the work queue.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+  useEffect(() => {
+    setSuccess(null);
+    void refresh();
+  }, [refresh]);
 
-    return () => { active = false; };
-  }, []);
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSearch(searchDraft.trim());
+  }
+
+  async function claim(item: WorkItem) {
+    if (busyItemId || !item.allowed_actions.includes('CLAIM')) return;
+    setBusyItemId(item.id);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await claimWorkItem(item.id, item.record_version, globalThis.crypto.randomUUID());
+      setSuccess(`“${item.title}” is now assigned to you.`);
+      await refresh();
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : 'Unable to claim the work item.');
+    } finally {
+      setBusyItemId(null);
+    }
+  }
+
+  async function complete(item: WorkItem) {
+    if (busyItemId || !item.allowed_actions.includes('COMPLETE')) return;
+    setBusyItemId(item.id);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await completeWorkItem(item.id, item.record_version, globalThis.crypto.randomUUID());
+      setSuccess(`“${item.title}” was completed.`);
+      await refresh();
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : 'Unable to complete the work item.');
+    } finally {
+      setBusyItemId(null);
+    }
+  }
+
+  function open(item: WorkItem) {
+    if (!item.target || !item.allowed_actions.includes('OPEN')) return;
+    window.location.hash = item.target.href;
+  }
+
+  const summary = queue?.summary;
 
   return (
     <>
-      <PageHeader code="WRK-HOME" batch="B04" title="My ERP workspace" description="Your role-authorised queue for the currently selected company and plant." />
-      <div className="live-notice"><span></span><b>Connected to ERP services</b> Navigation and API access are enforced by the active role and context.</div>
-      <div className="kpi-grid">
-        <div className="kpi"><span>Assigned work</span><b>{loading ? '—' : tasks.length}</b><small>current role and plant</small></div>
-        <div className="kpi"><span>High priority</span><b>{loading ? '—' : tasks.filter((task) => task.priority === 'HIGH').length}</b><small>requires attention</small></div>
-        <div className="kpi"><span>Session scope</span><b className="compact">Active</b><small>server validated</small></div>
-        <div className="kpi"><span>Data source</span><b className="compact">Live API</b><small>not the screen catalogue</small></div>
+      <PageHeader
+        code="WRK-HOME"
+        batch="B04"
+        title="My ERP workspace"
+        description="Persisted approvals, assigned work and operational exceptions for the selected company and plant."
+      />
+      <div className="live-notice">
+        <span></span>
+        <b>Live control queue</b>
+        Deadlines, ownership and completion state are read from workflow records in the ERP database.
       </div>
-      <section className="panel">
-        <div className="panel-head"><h3>Priority work</h3><span>Role-aware queue</span></div>
-        <div className="panel-body">
-          {loading && <div className="empty-state">Loading your work queue…</div>}
-          {error && <div className="form-error" role="alert"><span>{error}</span></div>}
-          {!loading && !error && tasks.map((task) => (
-            <div className="task-row" key={task.id}>
-              <div><b>{task.title}</b><small>{task.id} · {task.owner}</small></div>
-              <span className={`status ${task.priority === 'HIGH' ? 'status-warn' : 'status-info'}`}>{task.priority}</span>
-            </div>
-          ))}
-          {!loading && !error && !tasks.length && <div className="empty-state">You have no assigned work in this context.</div>}
+
+      <div className="kpi-grid">
+        <div className="kpi"><span>Open work</span><b>{loading && !queue ? '—' : summary?.open_total ?? 0}</b><small>visible in this scope</small></div>
+        <div className="kpi"><span>Assigned to me</span><b>{loading && !queue ? '—' : summary?.assigned_to_me ?? 0}</b><small>owned actions</small></div>
+        <div className="kpi"><span>Pending approvals</span><b>{loading && !queue ? '—' : summary?.approvals ?? 0}</b><small>within your authority</small></div>
+        <div className="kpi"><span>Overdue</span><b className={summary?.overdue ? 'text-bad' : ''}>{loading && !queue ? '—' : summary?.overdue ?? 0}</b><small>past deadline</small></div>
+      </div>
+
+      <section className="panel work-queue-panel">
+        <div className="panel-head">
+          <div><h3>Priority work</h3><span>{summary?.exceptions ?? 0} open exceptions · {summary?.unassigned ?? 0} unassigned</span></div>
+          <button className="secondary compact-button" type="button" onClick={() => void refresh()} disabled={loading}>Refresh</button>
         </div>
+
+        <form className="work-toolbar" onSubmit={submitSearch}>
+          <label>
+            Work type
+            <select value={kind} onChange={(event) => setKind(event.target.value as '' | WorkItemKind)}>
+              <option value="">All types</option>
+              <option value="APPROVAL">Approvals</option>
+              <option value="TASK">Tasks</option>
+              <option value="EXCEPTION">Exceptions</option>
+            </select>
+          </label>
+          <label>
+            Ownership
+            <select value={assignment} onChange={(event) => setAssignment(event.target.value as AssignmentFilter)}>
+              <option value="ALL">All visible work</option>
+              <option value="MINE">Assigned to me</option>
+              <option value="UNASSIGNED">Unassigned</option>
+            </select>
+          </label>
+          <label className="work-overdue-filter">
+            <input type="checkbox" checked={overdueOnly} onChange={(event) => setOverdueOnly(event.target.checked)} />
+            Overdue only
+          </label>
+          <label className="work-search">
+            Search queue
+            <span><input value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Title, source or record ID" /><button className="secondary" type="submit">Search</button></span>
+          </label>
+        </form>
+
+        {error && <div className="form-error panel-message" role="alert"><span>{error}</span><button type="button" onClick={() => void refresh()}>Retry</button></div>}
+        {success && <div className="form-success panel-message" role="status"><span></span>{success}</div>}
+        {loading && !queue && <div className="empty-state">Loading your persisted work queue…</div>}
+        {!loading && !error && !queue?.data.length && <div className="empty-state">No work items match these filters in the selected context.</div>}
+
+        {Boolean(queue?.data.length) && (
+          <div className={`table-wrap work-table ${loading ? 'is-refreshing' : ''}`}>
+            <table>
+              <thead><tr><th>Type</th><th>Work item</th><th>Priority</th><th>Age</th><th>Deadline</th><th>Owner</th><th>Actions</th></tr></thead>
+              <tbody>
+                {queue!.data.map((item) => (
+                  <tr key={item.id} className={item.is_overdue ? 'work-overdue' : ''}>
+                    <td><span className={`work-kind work-kind-${item.kind.toLowerCase()}`}>{kindLabel(item.kind)}</span></td>
+                    <td>
+                      <b>{item.title}</b>
+                      <small>{item.description ?? sourceLabel(item)}</small>
+                      {item.source && <small>{sourceLabel(item)} · v{item.record_version}</small>}
+                    </td>
+                    <td><span className={`status ${priorityClass(item.priority)}`}>{item.priority}</span></td>
+                    <td>{ageLabel(item.age_minutes)}<small>{item.age_bucket.replaceAll('_', ' ').toLowerCase()}</small></td>
+                    <td className={item.is_overdue ? 'text-bad' : ''}>{dueLabel(item.due_at)}<small>{item.is_overdue ? 'Overdue' : 'Active deadline'}</small></td>
+                    <td>{item.assignee?.name ?? 'Unassigned'}<small>{item.assignee ? item.assignee.email : 'Available to claim'}</small></td>
+                    <td>
+                      <div className="work-actions">
+                        {item.allowed_actions.includes('CLAIM') && <button className="secondary" type="button" onClick={() => void claim(item)} disabled={busyItemId === item.id}>Claim</button>}
+                        {item.allowed_actions.includes('COMPLETE') && <button className="secondary" type="button" onClick={() => void complete(item)} disabled={busyItemId === item.id}>Complete</button>}
+                        {item.allowed_actions.includes('OPEN') && <button className="primary" type="button" onClick={() => open(item)}>Open</button>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </>
   );
+}
+
+function kindLabel(kind: WorkItemKind): string {
+  return kind === 'APPROVAL' ? 'Approval' : kind === 'EXCEPTION' ? 'Exception' : 'Task';
+}
+
+function priorityClass(priority: WorkItem['priority']): string {
+  if (priority === 'URGENT') return 'status-bad';
+  if (priority === 'HIGH') return 'status-warn';
+  return 'status-info';
+}
+
+function ageLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h`;
+  return `${Math.floor(minutes / 1440)}d`;
+}
+
+function dueLabel(value: string | null): string {
+  if (!value) return 'No deadline';
+  return new Intl.DateTimeFormat(undefined, {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function sourceLabel(item: WorkItem): string {
+  if (!item.source) return `Work item ${shortId(item.id)}`;
+  return `${item.source.type.replaceAll('_', ' ')} ${shortId(item.source.id ?? item.id)}`;
+}
+
+function shortId(id: string): string {
+  return id.split('-').at(-1)?.slice(-8).toUpperCase() ?? id.slice(-8).toUpperCase();
 }

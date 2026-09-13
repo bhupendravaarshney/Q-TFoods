@@ -144,6 +144,12 @@ final class UnsoldReturnApprovalEndpointTest extends TestCase
             'status' => 'APPROVED',
             'record_version' => 2,
         ]);
+        $this->assertDatabaseHas('work_items', [
+            'source_type' => 'approval_request',
+            'source_id' => $approvalId,
+            'status' => 'COMPLETED',
+            'completed_by' => self::FINANCE_USER_ID,
+        ]);
         $this->assertDatabaseCount('approval_decisions', 1);
         $this->assertDatabaseHas('audit_events', [
             'command' => 'DECIDE_UNSOLD_RETURN_LOSS_APPROVAL',
@@ -231,6 +237,12 @@ final class UnsoldReturnApprovalEndpointTest extends TestCase
             'from_status' => 'DISPOSITION_REVIEW',
             'to_status' => 'RETURN_QUARANTINE',
             'record_version' => 4,
+        ]);
+        $this->assertDatabaseHas('work_items', [
+            'source_type' => 'approval_request',
+            'source_id' => $approvalId,
+            'status' => 'COMPLETED',
+            'completed_by' => self::FINANCE_USER_ID,
         ]);
         $this->assertSame(
             10.0,

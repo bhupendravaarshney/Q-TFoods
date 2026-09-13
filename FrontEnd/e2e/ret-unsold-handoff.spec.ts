@@ -90,7 +90,19 @@ test('Sales, Operations, and Finance complete an unsold-return hand-off', async 
   );
   await logout(page);
 
-  await loginAs(page, 'finance.user@qtfoods.local');
+  await loginAs(page, 'finance.user@qtfoods.local', false);
+  const approvalWork = page.locator('.work-table tbody tr').filter({
+    hasText: 'Unsold return loss approval',
+  });
+  await expect(approvalWork).toBeVisible();
+  await approvalWork.getByRole('button', { name: 'Claim' }).click();
+  await expect(approvalWork).toContainText('Demo Finance Reviewer');
+  await approvalWork.getByRole('button', { name: 'Open' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Unsold Sales Return & Loss' })
+  ).toBeVisible();
+  await caseWorkspace(page, caseCode);
+
   const approvalInbox = page.locator('.approval-inbox');
   await expect(
     approvalInbox.getByRole('button', { name: 'Approve disposition' })
@@ -164,13 +176,18 @@ test('Sales, Operations, and Finance complete an unsold-return hand-off', async 
   expect(await readFile(downloadPath!, 'utf8')).toBe(evidenceContents);
 });
 
-async function loginAs(page: Page, email: string): Promise<void> {
+async function loginAs(page: Page, email: string, openReturns = true): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill('prototype');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByRole('button', { name: /Training Plant/ }).click();
+
+  if (!openReturns) {
+    await expect(page.getByRole('heading', { name: 'My ERP workspace' })).toBeVisible();
+    return;
+  }
 
   const navigation = page.getByRole('navigation', {
     name: 'Authorised ERP modules',

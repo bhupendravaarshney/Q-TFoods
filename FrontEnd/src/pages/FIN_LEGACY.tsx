@@ -1,8 +1,5 @@
-import { ModulePage } from '../components/ModulePage';
-import type { ScreenDefinition } from '../types/screen';
-
-const screen: ScreenDefinition = {"code": "FIN-LEGACY", "title": "Historical import centre", "area": "Finance Supplement", "batch": "Supplement", "description": "Staged historical bill import with mapping, validation and reconciliation."};
+import { FinanceP2Workspace } from '../components/FinanceP2Workspaces';
 
 export default function FIN_LEGACY() {
-  return <ModulePage screen={screen} />;
+  return <FinanceP2Workspace screen="FIN-LEGACY" />;
 }

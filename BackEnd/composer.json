@@ -8,6 +8,7 @@
     "ext-pdo": "*",
     "ext-pdo_pgsql": "*",
     "ext-redis": "*",
+    "league/flysystem-aws-s3-v3": "^3.0",
     "php": "^8.5",
     "laravel/framework": "^13.0"
   },

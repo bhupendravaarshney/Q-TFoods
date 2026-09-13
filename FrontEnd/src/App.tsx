@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
-import { currentSession, isApiError, login, logout, resetAuthenticationClient, selectContext } from './api/auth';
+import {
+  completeMfaChallenge,
+  currentSession,
+  isApiError,
+  isMfaChallenge,
+  login,
+  logout,
+  resetAuthenticationClient,
+  selectContext,
+  type MfaChallenge,
+} from './api/auth';
 import AppShell from './app/AppShell';
 import ACC_CTX from './pages/ACC_CTX';
 import ACC_LOGIN from './pages/ACC_LOGIN';
@@ -11,25 +21,34 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [choosingContext, setChoosingContext] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mfaChallenge, setMfaChallenge] = useState<MfaChallenge | null>(null);
 
   useEffect(() => {
     const handleSessionExpired = () => {
       resetAuthenticationClient();
       setSession(null);
       setChoosingContext(false);
+      setMfaChallenge(null);
       setError('Your ERP session expired. Sign in again to continue.');
     };
     const handleContextRequired = () => {
       void restoreSession();
     };
+    const handleSessionRefresh = () => {
+      currentSession()
+        .then((refreshed) => setSession(refreshed))
+        .catch((caught) => setError(isApiError(caught) ? caught.message : 'Unable to refresh the ERP session.'));
+    };
 
     window.addEventListener('erp:session-expired', handleSessionExpired);
     window.addEventListener('erp:context-required', handleContextRequired);
+    window.addEventListener('erp:session-refresh', handleSessionRefresh);
     void restoreSession();
 
     return () => {
       window.removeEventListener('erp:session-expired', handleSessionExpired);
       window.removeEventListener('erp:context-required', handleContextRequired);
+      window.removeEventListener('erp:session-refresh', handleSessionRefresh);
     };
   }, []);
 
@@ -57,10 +76,31 @@ export default function App() {
 
     try {
       const authenticated = await login(email, password);
+      if (isMfaChallenge(authenticated)) {
+        setMfaChallenge(authenticated);
+        return;
+      }
+      setMfaChallenge(null);
       setSession(authenticated);
       setChoosingContext(true);
     } catch (caught) {
       setError(isApiError(caught) ? caught.message : 'Sign in failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleMfa(code: string) {
+    if (!mfaChallenge) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const authenticated = await completeMfaChallenge(mfaChallenge.challenge_id, code);
+      setMfaChallenge(null);
+      setSession(authenticated);
+      setChoosingContext(true);
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : 'Two-step verification failed.');
     } finally {
       setBusy(false);
     }
@@ -74,6 +114,7 @@ export default function App() {
       const updated = await selectContext(companyId, plantId);
       setSession(updated);
       setChoosingContext(false);
+      setMfaChallenge(null);
       window.location.hash = 'WRK-HOME';
     } catch (caught) {
       setError(isApiError(caught) ? caught.message : 'Context selection failed.');
@@ -104,6 +145,9 @@ export default function App() {
     return (
       <ACC_LOGIN
         onLogin={handleLogin}
+        onMfa={handleMfa}
+        onCancelMfa={() => { setMfaChallenge(null); setError(null); }}
+        mfaChallenge={mfaChallenge}
         busy={busy}
         error={error}
         onRetry={error === 'Unable to contact the ERP service.' ? restoreSession : undefined}

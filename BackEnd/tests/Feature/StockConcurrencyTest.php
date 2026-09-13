@@ -13,6 +13,22 @@ final class StockConcurrencyTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const COMPANY_ID = '00000000-0000-4000-8000-000000000001';
+    private const TRAINING_PLANT_ID = '00000000-0000-4000-8000-000000000101';
+    private const FINANCE_PLANT_ID = '00000000-0000-4000-8000-000000000102';
+    private const ACTOR_ID = '00000000-0000-4000-8000-000000000202';
+    private const ITEM_ID = '00000000-0000-4000-8000-000000000603';
+    private const LOT_ID = '00000000-0000-4000-8000-000000000703';
+    private const SOURCE_ID = '00000000-0000-4000-8000-000000001213';
+    private const TARGET_LOCATION_ID = '00000000-0000-4000-8000-000000000810';
+    private const FINANCE_LOCATION_ID = '00000000-0000-4000-8000-000000000806';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed();
+    }
+
     public function test_two_commands_cannot_consume_more_than_available_stock(): void
     {
         [$command, $sourceId, $targetId] = $this->stockCommand('7');
@@ -53,7 +69,8 @@ final class StockConcurrencyTest extends TestCase
     {
         [$command, , $targetId] = $this->stockCommand('1');
         DB::table('stock_positions')->where('id', $targetId)->update([
-            'plant_id' => (string) Str::uuid(),
+            'plant_id' => self::FINANCE_PLANT_ID,
+            'location_id' => self::FINANCE_LOCATION_ID,
         ]);
 
         $this->expectException(ValidationException::class);
@@ -86,35 +103,38 @@ final class StockConcurrencyTest extends TestCase
 
     private function stockCommand(string $quantity): array
     {
-        $companyId = (string) Str::uuid();
-        $plantId = (string) Str::uuid();
-        $itemId = (string) Str::uuid();
-        $lotId = (string) Str::uuid();
-        $sourceId = (string) Str::uuid();
+        $sourceId = self::SOURCE_ID;
         $targetId = (string) Str::uuid();
         $now = now();
 
-        foreach ([[$sourceId, '10'], [$targetId, '0']] as [$id, $stock]) {
-            DB::table('stock_positions')->insert([
-                'id' => $id,
-                'company_id' => $companyId,
-                'plant_id' => $plantId,
-                'item_id' => $itemId,
-                'lot_id' => $lotId,
-                'owner_party_id' => null,
-                'location_id' => (string) Str::uuid(),
-                'quality_status' => 'RELEASED',
-                'quantity_base' => $stock,
-                'uom_code' => 'KG',
-                'record_version' => 1,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-        }
+        DB::table('stock_reservations')->where('stock_position_id', $sourceId)->delete();
+        DB::table('stock_positions')->where('id', $sourceId)->update([
+            'quantity_base' => 10,
+            'reserved_quantity_base' => 0,
+            'record_version' => 1,
+            'updated_at' => $now,
+        ]);
+        DB::table('stock_positions')->insert([
+            'id' => $targetId,
+            'company_id' => self::COMPANY_ID,
+            'plant_id' => self::TRAINING_PLANT_ID,
+            'item_id' => self::ITEM_ID,
+            'lot_id' => self::LOT_ID,
+            'owner_party_id' => null,
+            'inventory_owner_id' => self::COMPANY_ID,
+            'location_id' => self::TARGET_LOCATION_ID,
+            'quality_status' => 'RELEASED',
+            'quantity_base' => 0,
+            'reserved_quantity_base' => 0,
+            'uom_code' => 'KG',
+            'record_version' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
 
         return [[
-            'company_id' => $companyId,
-            'plant_id' => $plantId,
+            'company_id' => self::COMPANY_ID,
+            'plant_id' => self::TRAINING_PLANT_ID,
             'source_position_id' => $sourceId,
             'target_position_id' => $targetId,
             'quantity_base' => $quantity,
@@ -122,7 +142,7 @@ final class StockConcurrencyTest extends TestCase
             'movement_type' => 'TRANSFER',
             'source_type' => 'TEST',
             'source_id' => (string) Str::uuid(),
-            'actor_id' => (string) Str::uuid(),
+            'actor_id' => self::ACTOR_ID,
             'idempotency_key' => (string) Str::uuid(),
         ], $sourceId, $targetId];
     }

@@ -2,9 +2,12 @@
 
 namespace App\Modules\Sales\Application;
 
+use App\Modules\Work\Application\WorkItemService;
+use App\Shared\Approval\ApprovalAuthorityService;
 use App\Shared\Audit\AuditService;
 use App\Shared\Idempotency\IdempotencyService;
 use App\Shared\Outbox\OutboxService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -19,6 +22,8 @@ final class UnsoldSalesReturnApprovalService
         private readonly AuditService $audit,
         private readonly OutboxService $outbox,
         private readonly UnsoldSalesReturnOutcomePostingService $outcomes,
+        private readonly WorkItemService $workItems,
+        private readonly ApprovalAuthorityService $authority,
     ) {}
 
     public function decide(string $approvalId, string $decision, array $data): array
@@ -35,6 +40,7 @@ final class UnsoldSalesReturnApprovalService
             $payload = Arr::except($data + ['decision' => $decision], [
                 'idempotency_key',
                 'correlation_id',
+                'permissions',
             ]);
 
             if ($existing = $this->idempotency->begin($namespace, $key, $payload)) {
@@ -72,6 +78,20 @@ final class UnsoldSalesReturnApprovalService
                 ]);
             }
 
+            $requiredPermission = $approval->required_permission
+                ?: 'ACTION:RET-UNSOLD:APPROVE';
+            $authority = $this->authority->resolve(
+                $data['actor_id'],
+                $requiredPermission,
+                $data['company_id'],
+                $data['plant_id']
+            );
+            if ($authority === null) {
+                throw new AuthorizationException(
+                    "This approval requires {$requiredPermission} authority in the selected plant."
+                );
+            }
+
             $case = DB::table('unsold_return_cases')
                 ->where('id', $approval->entity_id)
                 ->where('company_id', $data['company_id'])
@@ -99,6 +119,9 @@ final class UnsoldSalesReturnApprovalService
                 'reviewer_id' => $data['actor_id'],
                 'decision' => $decision,
                 'reason' => $data['reason'] ?? null,
+                'authority_source' => $authority['source'],
+                'authority_permission' => $authority['permission'],
+                'delegation_id' => $authority['delegation_id'],
                 'created_at' => now(),
             ]);
 
@@ -107,6 +130,12 @@ final class UnsoldSalesReturnApprovalService
                 'record_version' => $approvalVersion,
                 'updated_at' => now(),
             ]);
+
+            $this->workItems->resolveApproval(
+                $approvalId,
+                $data['actor_id'],
+                $decision
+            );
 
             $stockMovementIds = $decision === 'APPROVE'
                 ? $this->outcomes->postApproved($approvalId, $data['correlation_id'] ?? null)
@@ -151,6 +180,9 @@ final class UnsoldSalesReturnApprovalService
                     'reason_code' => $decision,
                     'safe_diff' => [
                         'status' => ['from' => 'PENDING', 'to' => $approvalStatus],
+                        'authority_source' => $authority['source'],
+                        'authority_permission' => $authority['permission'],
+                        'delegation_id' => $authority['delegation_id'],
                     ],
                 ]
             );
@@ -168,6 +200,9 @@ final class UnsoldSalesReturnApprovalService
                     'case_status' => $caseStatus,
                     'case_record_version' => $caseVersion,
                     'stock_movement_ids' => $stockMovementIds,
+                    'authority_source' => $authority['source'],
+                    'authority_permission' => $authority['permission'],
+                    'delegation_id' => $authority['delegation_id'],
                 ],
                 $data['correlation_id'] ?? null
             );
@@ -182,6 +217,9 @@ final class UnsoldSalesReturnApprovalService
                 'case_status' => $caseStatus,
                 'case_record_version' => $caseVersion,
                 'stock_movement_ids' => $stockMovementIds,
+                'authority_source' => $authority['source'],
+                'authority_permission' => $authority['permission'],
+                'delegation_id' => $authority['delegation_id'],
             ];
 
             $this->idempotency->complete($namespace, $key, $result);

@@ -20,7 +20,7 @@ final class UnsoldSalesReturnTest extends TestCase
         $service = $this->app->make(UnsoldSalesReturnService::class);
 
         $receipt = $service->receive($case['return_case_id'], $scope + [
-            'actor_id' => (string) Str::uuid(),
+            'actor_id' => $this->createUser(),
             'expected_version' => 1,
             'idempotency_key' => (string) Str::uuid(),
             'lines' => [[
@@ -33,6 +33,7 @@ final class UnsoldSalesReturnTest extends TestCase
         $this->assertSame('RETURN_QUARANTINE', $receipt['status']);
 
         $qualityActor = (string) Str::uuid();
+        $this->createUser($qualityActor);
         $disposition = $service->disposition($case['return_case_id'], $scope + [
             'actor_id' => $qualityActor,
             'expected_version' => 2,
@@ -49,14 +50,16 @@ final class UnsoldSalesReturnTest extends TestCase
 
         $this->assertDatabaseCount('loss_events', 0);
 
+        $reviewerId = (string) Str::uuid();
+        $this->createUser($reviewerId);
         $this->app->make(ApprovalService::class)->decide(
             $disposition['approval_request_id'],
-            (string) Str::uuid(),
+            $reviewerId,
             'APPROVE'
         );
 
         $loss = $service->postLossAfterApproval($case['return_case_id'], $scope + [
-            'actor_id' => (string) Str::uuid(),
+            'actor_id' => $this->createUser(),
             'expected_version' => 3,
             'idempotency_key' => (string) Str::uuid(),
             'uom_code' => 'PACK',
@@ -96,7 +99,7 @@ final class UnsoldSalesReturnTest extends TestCase
         $service = $this->app->make(UnsoldSalesReturnService::class);
 
         $partial = $service->receive($case['return_case_id'], $scope + [
-            'actor_id' => (string) Str::uuid(),
+            'actor_id' => $this->createUser(),
             'expected_version' => 1,
             'idempotency_key' => (string) Str::uuid(),
             'lines' => [[
@@ -114,7 +117,7 @@ final class UnsoldSalesReturnTest extends TestCase
         ]);
 
         $complete = $service->receive($case['return_case_id'], $scope + [
-            'actor_id' => (string) Str::uuid(),
+            'actor_id' => $this->createUser(),
             'expected_version' => 2,
             'idempotency_key' => (string) Str::uuid(),
             'lines' => [[
@@ -136,7 +139,7 @@ final class UnsoldSalesReturnTest extends TestCase
         $service = $this->app->make(UnsoldSalesReturnService::class);
 
         $service->receive($case['return_case_id'], $scope + [
-            'actor_id' => (string) Str::uuid(),
+            'actor_id' => $this->createUser(),
             'expected_version' => 1,
             'idempotency_key' => (string) Str::uuid(),
             'lines' => [[
@@ -149,7 +152,7 @@ final class UnsoldSalesReturnTest extends TestCase
         $this->expectException(ValidationException::class);
 
         $service->disposition($case['return_case_id'], $scope + [
-            'actor_id' => (string) Str::uuid(),
+            'actor_id' => $this->createUser(),
             'expected_version' => 2,
             'idempotency_key' => (string) Str::uuid(),
             'lines' => [[
@@ -165,9 +168,10 @@ final class UnsoldSalesReturnTest extends TestCase
         [$case, $lineId, $scope, $positionId] = $this->createCase('10');
         $service = $this->app->make(UnsoldSalesReturnService::class);
         $qualityActor = (string) Str::uuid();
+        $this->createUser($qualityActor);
 
         $service->receive($case['return_case_id'], $scope + [
-            'actor_id' => (string) Str::uuid(),
+            'actor_id' => $this->createUser(),
             'expected_version' => 1,
             'idempotency_key' => (string) Str::uuid(),
             'lines' => [[
@@ -202,13 +206,36 @@ final class UnsoldSalesReturnTest extends TestCase
             'company_id' => (string) Str::uuid(),
             'plant_id' => (string) Str::uuid(),
         ];
+        $now = now();
+        DB::table('companies')->insert([
+            'id' => $scope['company_id'],
+            'code' => 'TEST-'.Str::upper(Str::random(8)),
+            'legal_name' => 'Test company',
+            'display_name' => 'Test company',
+            'status' => 'ACTIVE',
+            'record_version' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('plants')->insert([
+            'id' => $scope['plant_id'],
+            'company_id' => $scope['company_id'],
+            'code' => 'TEST',
+            'name' => 'Test plant',
+            'timezone' => 'Asia/Kolkata',
+            'status' => 'ACTIVE',
+            'record_version' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
         $skuId = (string) Str::uuid();
         $lotId = (string) Str::uuid();
+        $ownerId = (string) Str::uuid();
         $case = $service->createRequest($scope + [
             'party_id' => (string) Str::uuid(),
             'shipment_id' => (string) Str::uuid(),
             'reason_code' => 'UNSOLD_MARKET_RETURN',
-            'actor_id' => (string) Str::uuid(),
+            'actor_id' => $this->createUser(),
             'idempotency_key' => (string) Str::uuid(),
             'lines' => [[
                 'sku_id' => $skuId,
@@ -216,6 +243,45 @@ final class UnsoldSalesReturnTest extends TestCase
                 'requested_quantity' => $requestedQuantity,
                 'uom_code' => 'PACK',
             ]],
+        ]);
+
+        DB::table('uoms')->updateOrInsert(['code' => 'PACK'], [
+            'name' => 'Pack',
+            'precision' => 3,
+        ]);
+        DB::table('items')->insert([
+            'id' => $skuId,
+            'company_id' => $scope['company_id'],
+            'code' => 'SKU-'.Str::upper(Str::random(8)),
+            'name' => 'Test finished good',
+            'item_type' => 'FINISHED_GOOD',
+            'base_uom' => 'PACK',
+            'status' => 'ACTIVE',
+            'record_version' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('lots')->insert([
+            'id' => $lotId,
+            'company_id' => $scope['company_id'],
+            'item_id' => $skuId,
+            'internal_lot_code' => 'LOT-'.Str::upper(Str::random(8)),
+            'origin_type' => 'RETURN',
+            'status' => 'ACTIVE',
+            'record_version' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('inventory_owners')->insert([
+            'id' => $ownerId,
+            'company_id' => $scope['company_id'],
+            'code' => 'OWN',
+            'name' => 'Company-owned stock',
+            'owner_type' => 'COMPANY',
+            'status' => 'ACTIVE',
+            'record_version' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
         ]);
 
         $lineId = DB::table('unsold_return_lines')
@@ -242,9 +308,11 @@ final class UnsoldSalesReturnTest extends TestCase
             'plant_id' => $scope['plant_id'],
             'item_id' => $skuId,
             'lot_id' => $lotId,
+            'inventory_owner_id' => $ownerId,
             'location_id' => $locationId,
             'quality_status' => 'RETURN_QUARANTINE',
             'quantity_base' => 0,
+            'reserved_quantity_base' => 0,
             'uom_code' => 'PACK',
             'record_version' => 1,
             'created_at' => now(),
@@ -275,9 +343,11 @@ final class UnsoldSalesReturnTest extends TestCase
                 'plant_id' => $scope['plant_id'],
                 'item_id' => $skuId,
                 'lot_id' => $lotId,
+                'inventory_owner_id' => $ownerId,
                 'location_id' => $outcomeLocationId,
                 'quality_status' => $qualityStatus,
                 'quantity_base' => 0,
+                'reserved_quantity_base' => 0,
                 'uom_code' => 'PACK',
                 'record_version' => 1,
                 'created_at' => now(),
@@ -286,5 +356,21 @@ final class UnsoldSalesReturnTest extends TestCase
         }
 
         return [$case, $lineId, $scope, $positionId];
+    }
+
+    private function createUser(?string $userId = null): string
+    {
+        $userId ??= (string) Str::uuid();
+        DB::table('users')->insert([
+            'id' => $userId,
+            'email' => $userId.'@test.local',
+            'name' => 'Test workflow actor',
+            'password_hash' => 'not-used',
+            'status' => 'ACTIVE',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $userId;
     }
 }

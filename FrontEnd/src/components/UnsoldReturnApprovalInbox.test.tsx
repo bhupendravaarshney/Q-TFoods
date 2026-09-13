@@ -61,8 +61,11 @@ describe('UnsoldReturnApprovalInbox', () => {
     });
     expect(
       screen.getByRole('button', {
-        name: /4 destroy.*Demo Operations Manager/,
+        name: /Submission 1.*4 destroy.*Standard loss authority/,
       })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Submitted by Demo Operations Manager/)
     ).toBeInTheDocument();
     expect(screen.getByText('Total destroy').parentElement).toHaveTextContent('4');
 

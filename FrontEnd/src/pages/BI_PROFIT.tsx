@@ -1,8 +1,5 @@
-import { ModulePage } from '../components/ModulePage';
-import type { ScreenDefinition } from '../types/screen';
-
-const screen: ScreenDefinition = {"code": "BI-PROFIT", "title": "Profitability", "area": "Sales / Dispatch", "batch": "B13-B17", "description": "Profitability workflow with server-authoritative scope, state, version, approval and audit."};
+import { CommercialP2Workspace } from '../components/CommercialP2Workspaces';
 
 export default function BI_PROFIT() {
-  return <ModulePage screen={screen} />;
+  return <CommercialP2Workspace screen="BI-PROFIT" />;
 }

@@ -6,6 +6,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Middleware\EnsureContextSelected;
+use App\Http\Middleware\EnsureActiveDeviceSession;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\EnsureScreenAccess;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
+            'erp.device' => EnsureActiveDeviceSession::class,
             'erp.context' => EnsureContextSelected::class,
             'erp.permission' => EnsurePermission::class,
             'erp.screen' => EnsureScreenAccess::class,

@@ -16,6 +16,9 @@ final class UnsoldSalesReturnReferenceValidator
             ->where('id', $data['party_id'])
             ->where('company_id', $data['company_id'])
             ->where('status', 'ACTIVE')
+            ->whereExists(fn ($role) => $role->from('party_roles as party_role')
+                ->whereColumn('party_role.party_id', 'parties.id')
+                ->where('party_role.role_code', 'CUSTOMER'))
             ->exists();
 
         if (! $partyExists) {
@@ -32,6 +35,19 @@ final class UnsoldSalesReturnReferenceValidator
 
         if (! $shipment) {
             $errors['shipment_id'][] = 'Select an eligible shipment for this customer and plant.';
+        }
+
+        if (isset($data['sales_order_id'])) {
+            $salesOrderExists = DB::table('sales_orders')
+                ->where('id', $data['sales_order_id'])
+                ->where('company_id', $data['company_id'])
+                ->where('plant_id', $data['plant_id'])
+                ->whereNotIn('status', ['DRAFT', 'CANCELLED'])
+                ->exists();
+
+            if (! $salesOrderExists) {
+                $errors['sales_order_id'][] = 'Select an eligible sales order in the current plant.';
+            }
         }
 
         if (isset($data['invoice_id'])) {

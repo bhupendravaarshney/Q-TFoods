@@ -58,6 +58,9 @@ final class UnsoldSalesReturnService
                 DB::table('unsold_return_lines')->insert([
                     'id' => (string) Str::uuid(),
                     'return_case_id' => $id,
+                    'company_id' => $data['company_id'],
+                    'plant_id' => $data['plant_id'],
+                    'shipment_id' => $data['shipment_id'],
                     'shipment_line_id' => $line['shipment_line_id'] ?? null,
                     'sku_id' => $line['sku_id'],
                     'fg_lot_id' => $line['fg_lot_id'] ?? null,
@@ -313,6 +316,10 @@ final class UnsoldSalesReturnService
                 ]);
             }
 
+            $authorityValue = (string) DB::table('unsold_return_lines')
+                ->where('return_case_id', $caseId)
+                ->sum('destroy_quantity');
+
             $approvalId = $this->approvals->request(
                 'unsold_return_loss',
                 $caseId,
@@ -321,7 +328,12 @@ final class UnsoldSalesReturnService
                 $case->company_id,
                 $case->plant_id,
                 'UNSOLD_RETURN_LOSS_APPROVAL',
-                ['return_case_id' => $caseId]
+                [
+                    'return_case_id' => $caseId,
+                    'authority_metric' => 'DESTROY_QUANTITY',
+                    'authority_value' => $authorityValue,
+                    'authority_uom' => 'BASE',
+                ]
             );
 
             DB::table('unsold_return_cases')->where('id', $caseId)->update([

@@ -1,8 +1,5 @@
-import { ModulePage } from '../components/ModulePage';
-import type { ScreenDefinition } from '../types/screen';
-
-const screen: ScreenDefinition = {"code": "CRM-PRICE", "title": "Pricing & Credit", "area": "Sales / Dispatch", "batch": "B13-B17", "description": "Pricing & Credit workflow with server-authoritative scope, state, version, approval and audit."};
+import { CommercialP2Workspace } from '../components/CommercialP2Workspaces';
 
 export default function CRM_PRICE() {
-  return <ModulePage screen={screen} />;
+  return <CommercialP2Workspace screen="CRM-PRICE" />;
 }

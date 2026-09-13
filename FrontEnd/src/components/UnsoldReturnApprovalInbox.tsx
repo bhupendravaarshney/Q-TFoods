@@ -22,7 +22,9 @@ type ApprovalFilter = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export function UnsoldReturnApprovalInbox({ refreshToken, onOpenCase, onDecision }: Props) {
   const session = useErpSession();
-  const canApprove = session.allowed_actions.includes('ACTION:RET-UNSOLD:APPROVE');
+  const canApprove = session.allowed_actions.some((permission) =>
+    permission.startsWith('ACTION:RET-UNSOLD:APPROVE')
+  );
   const contextKey = `${session.selected_context?.company_id}:${session.selected_context?.plant_id}`;
   const [filter, setFilter] = useState<ApprovalFilter>('PENDING');
   const [list, setList] = useState<UnsoldReturnApprovalList | null>(null);
@@ -178,7 +180,7 @@ export function UnsoldReturnApprovalInbox({ refreshToken, onOpenCase, onDecision
             <button className={`approval-queue-item ${selectedId === approval.id ? 'selected' : ''}`} type="button" key={approval.id} onClick={() => setSelectedId(approval.id)}>
               <span><b>{shortId(approval.return_case.id)}</b><StatusBadge status={displayStatus(approval.status)} /></span>
               <strong>{approval.return_case.party.name ?? approval.return_case.party.code ?? 'Customer'}</strong>
-              <small>{formatQuantity(approval.destroy_quantity)} destroy · {approval.maker.name ?? approval.maker.id}</small>
+              <small>Submission {approval.submission_number} · {formatQuantity(approval.destroy_quantity)} destroy · {approval.authority.band_name ?? 'approval authority'}</small>
             </button>
           ))}
         </div>
@@ -202,6 +204,10 @@ export function UnsoldReturnApprovalInbox({ refreshToken, onOpenCase, onDecision
                 <div><span>Case version</span><b>v{detail.entity_version}</b></div>
                 <div><span>Total destroy</span><b>{formatQuantity(detail.destroy_quantity)}</b></div>
                 <div><span>Reason</span><b>{displayStatus(detail.return_case.reason_code)}</b></div>
+                <div><span>Authority band</span><b>{detail.authority.band_name ?? detail.rule_code}</b></div>
+                <div><span>Required authority</span><b>{detail.authority.required_permission.replace('ACTION:RET-UNSOLD:', '')}</b></div>
+                <div><span>Submission</span><b>{detail.submission_number}{detail.resubmission_of_id ? ' · corrected resubmission' : ''}</b></div>
+                <div><span>SLA / escalation</span><b>{detail.escalated_at ? `Escalated ${formatDateTime(detail.escalated_at)}` : detail.due_at ? `Due ${formatDateTime(detail.due_at)}` : 'No deadline'}</b></div>
               </div>
 
               <div className="table-wrap approval-lines">
@@ -213,13 +219,13 @@ export function UnsoldReturnApprovalInbox({ refreshToken, onOpenCase, onDecision
 
               {detail.status === 'PENDING' && (
                 <div className="approval-decision">
-                  {!detail.can_decide && <div className="action-wait">This request cannot be decided by the current reviewer. Makers cannot review their own disposition, and the source case version must still match.</div>}
+                  {!detail.can_decide && <div className="action-wait">This request requires {detail.authority.required_permission}. Makers cannot review their own disposition, and the source case version must still match.</div>}
                   <label>Reviewer note / rejection reason<textarea rows={3} maxLength={2000} value={reason} onChange={(event) => changeReason(event.target.value)} placeholder="Required for rejection; optional for approval." disabled={!detail.can_decide || submitting !== null} /></label>
                   <div className="form-actions"><button className="danger-button" type="button" onClick={() => void decide('reject')} disabled={!detail.can_decide || submitting !== null}>{submitting === 'reject' ? 'Rejecting...' : 'Reject to Quality'}</button><button className="primary" type="button" onClick={() => void decide('approve')} disabled={!detail.can_decide || submitting !== null}>{submitting === 'approve' ? 'Approving...' : 'Approve disposition'}</button></div>
                 </div>
               )}
 
-              {detail.decisions.length > 0 && <div className="approval-decision-history"><h4>Decision record</h4>{detail.decisions.map((decision) => <div key={decision.id}><StatusBadge status={decision.decision} /><span><b>{decision.reviewer.name ?? decision.reviewer.id}</b><small>{decision.reason ?? 'No reviewer note'} · {formatDateTime(decision.decided_at)}</small></span></div>)}</div>}
+              {detail.decisions.length > 0 && <div className="approval-decision-history"><h4>Decision record</h4>{detail.decisions.map((decision) => <div key={decision.id}><StatusBadge status={decision.decision} /><span><b>{decision.reviewer.name ?? decision.reviewer.id}</b><small>{decision.reason ?? 'No reviewer note'} · {decision.authority_source ?? 'Recorded'} authority · {formatDateTime(decision.decided_at)}</small></span></div>)}</div>}
             </>
           )}
         </div>

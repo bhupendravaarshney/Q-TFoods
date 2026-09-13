@@ -48,7 +48,7 @@ export default function RET_UNSOLD() {
   const [returns, setReturns] = useState<UnsoldReturnList | null>(null);
   const [returnsLoading, setReturnsLoading] = useState(true);
   const [returnsError, setReturnsError] = useState<string | null>(null);
-  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(recordFromHash);
   const [caseRefreshToken, setCaseRefreshToken] = useState(0);
   const [approvalRefreshToken, setApprovalRefreshToken] = useState(0);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -96,7 +96,7 @@ export default function RET_UNSOLD() {
     setFieldErrors({});
     setSubmitError(null);
     setSuccess(null);
-    setSelectedCaseId(null);
+    setSelectedCaseId(recordFromHash());
     idempotencyKey.current = null;
     void refreshReturns();
   }, [contextKey, refreshReturns]);
@@ -431,7 +431,12 @@ export default function RET_UNSOLD() {
       <UnsoldReturnCasePanel
         caseId={selectedCaseId}
         refreshToken={caseRefreshToken}
-        onClose={() => setSelectedCaseId(null)}
+        onClose={() => {
+          setSelectedCaseId(null);
+          if (window.location.hash.startsWith('#RET-UNSOLD?')) {
+            window.history.replaceState(null, '', '#RET-UNSOLD');
+          }
+        }}
         onChanged={handleCaseChanged}
       />
 
@@ -450,6 +455,15 @@ export default function RET_UNSOLD() {
       </section>
     </>
   );
+}
+
+function recordFromHash(): string | null {
+  const [, query = ''] = window.location.hash.replace(/^#/, '').split('?', 2);
+  const record = new URLSearchParams(query).get('record');
+
+  return record && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(record)
+    ? record
+    : null;
 }
 
 function FieldError({ message }: { message?: string }) {

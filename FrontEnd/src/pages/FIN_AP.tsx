@@ -1,8 +1,14 @@
-import { ModulePage } from '../components/ModulePage';
-import type { ScreenDefinition } from '../types/screen';
-
-const screen: ScreenDefinition = {"code": "FIN-AP", "title": "Payables", "area": "Finance / Support", "batch": "B18-B21", "description": "Payables workflow with server-authoritative scope, state, version, approval and audit."};
+import { useState } from 'react';
+import { AccountsPayableWorkspace } from '../components/AccountsPayableWorkspace';
+import { PayablesIntegrationWorkspace } from '../components/FinanceP2Workspaces';
 
 export default function FIN_AP() {
-  return <ModulePage screen={screen} />;
+  const [area, setArea] = useState<'payables' | 'integrations'>('payables');
+  return <>
+    <div className="workspace-tabs fin-ap-area-tabs" aria-label="Accounts payable areas">
+      <button type="button" className={area === 'payables' ? 'active' : ''} onClick={() => setArea('payables')}>Invoices & payments</button>
+      <button type="button" className={area === 'integrations' ? 'active' : ''} onClick={() => setArea('integrations')}>Bank & statutory integrations</button>
+    </div>
+    {area === 'payables' ? <AccountsPayableWorkspace /> : <PayablesIntegrationWorkspace />}
+  </>;
 }
