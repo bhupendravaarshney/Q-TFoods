@@ -94,7 +94,7 @@ export function FinanceArchiveWorkspace() {
 }
 
 function ArchiveForm({ draft, setDraft, file, setFile, documentTypes, busy, submit, close }: { draft: ArchiveDraft; setDraft: (value: ArchiveDraft) => void; file: File | null; setFile: (value: File | null) => void; documentTypes: string[]; busy: boolean; submit: (event: FormEvent) => void; close: () => void }) {
-  return <form className="p2-command-editor p2-archive-form" onSubmit={submit}><fieldset disabled={busy}><div className="detail-status"><StatusBadge status="PRIVATE UPLOAD" /><span>20 MB maximum</span></div><h3>Archive finance document</h3><div className="form-grid">
+  return <form className="p2-command-editor p2-archive-form" onSubmit={submit}><fieldset disabled={busy}><div className="detail-status"><StatusBadge status="PRIVATE UPLOAD" /><span>20 MB maximum</span></div><h2>Archive finance document</h2><div className="form-grid">
     <label>Document number<input aria-label="Archive document number" value={draft.document_number} onChange={(event) => setDraft({ ...draft, document_number: event.target.value.toUpperCase() })} required /></label>
     <label>Document type<select aria-label="Archive document type" value={draft.document_type} onChange={(event) => setDraft({ ...draft, document_type: event.target.value })}>{documentTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
     <label>Document date<input aria-label="Archive document date" type="date" value={draft.document_date} onChange={(event) => setDraft({ ...draft, document_date: event.target.value })} required /></label>

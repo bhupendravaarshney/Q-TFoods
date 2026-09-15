@@ -93,7 +93,7 @@ async function createAndPost(page: Page, command: {
   await expect(editor.getByRole('status')).toContainText('Draft operation created');
   await editor.getByRole('button', { name: 'Post operation' }).click();
   await expect(editor.getByRole('status')).toContainText('Operation posted with 1 ledger movement');
-  await expect(editor.locator('.status').filter({ hasText: /^POSTED$/ })).toBeVisible();
+  await expect(editor.locator('.status').filter({ hasText: /^Posted$/ })).toBeVisible();
 }
 
 async function loginAndSelect(page: Page): Promise<void> {

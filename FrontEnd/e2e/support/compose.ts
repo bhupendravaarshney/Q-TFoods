@@ -31,6 +31,9 @@ export async function startE2EStack(): Promise<void> {
     await waitForHealth();
   } catch (error) {
     try {
+      process.stderr.write('\nE2E Compose service state:\n');
+      process.stderr.write(compose(['ps', '--all'], true));
+      process.stderr.write('\nE2E Compose service logs:\n');
       process.stderr.write(compose(['logs', '--no-color'], true));
     } finally {
       stopE2EStack();

@@ -75,7 +75,7 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
   await expect(editor.getByRole('status')).toContainText('calculated tax');
   await editor.getByRole('button', { name: 'Run three-way match' }).click();
   await expect(editor.getByRole('status')).toContainText('Three-way match completed');
-  await expect(editor.locator('.status').filter({ hasText: /^MATCHED$/ })).toBeVisible();
+  await expect(editor.locator('.status').filter({ hasText: /^Matched$/ })).toBeVisible();
   await editor.getByRole('button', { name: 'Approve invoice' }).click();
   await expect(editor.getByRole('alert')).toContainText('Maker-checker control prevents the invoice creator');
 
@@ -127,7 +127,7 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
   await editor.getByLabel('Notes').fill('Bank statement UTR and value date agree.');
   await editor.getByRole('button', { name: 'Reconcile payment' }).click();
   await expect(editor.getByRole('status')).toContainText('Payment reconciled to the bank statement');
-  await expect(editor.locator('.status').filter({ hasText: /^RECONCILED$/ })).toBeVisible();
+  await expect(editor.locator('.status').filter({ hasText: /^Reconciled$/ })).toBeVisible();
 
   const payment = await apiGet<{ payments: unknown[] }>(page, '/api/v1/finance/payables?payment_status=RECONCILED&q=UTR-E2E-P2P-001');
   expect(payment.payments).toHaveLength(1);

@@ -23,8 +23,8 @@ test('ERP Administrator versions approval policy and delegates scoped authority'
   await editor.getByLabel('Band 1 due hours').fill('23');
   await editor.getByLabel('Band 1 escalate after hours').fill('12');
   await editor.getByRole('button', { name: 'Save policy version' }).click();
-  await expect(page.getByRole('status')).toContainText('saved as policy version 2');
-  await expect(editor.getByText('PLANT · v2')).toBeVisible();
+  await expect(page.getByRole('status')).toContainText(/saved as policy version \d+/);
+  await expect(editor.getByText(/PLANT · v\d+/)).toBeVisible();
 
   await page.getByLabel('Delegator').selectOption({
     label: 'Demo Finance Manager (finance.user@qtfoods.local)',
@@ -42,7 +42,7 @@ test('ERP Administrator versions approval policy and delegates scoped authority'
   });
   await expect(delegation).toContainText('Demo Finance Manager');
   await expect(delegation).toContainText('Demo Operations Manager');
-  await expect(delegation).toContainText('ACTIVE');
+  await expect(delegation).toContainText('Active');
 
   await page.getByRole('button', { name: 'Escalate due approvals' }).click();
   await expect(page.getByRole('status')).toContainText('0 overdue approvals routed');

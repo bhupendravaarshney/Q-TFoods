@@ -13,8 +13,10 @@ unless every applicable upstream gate succeeds.
   High or Critical vulnerabilities. Dependabot proposes weekly npm, Composer,
   Docker, and GitHub Actions updates.
 - CodeQL scans JavaScript/TypeScript and GitHub Actions with the extended
-  security query suite. CodeQL does not support PHP; PHP is covered by its
-  locked dependency audit, backend suites, Trivy, and authenticated DAST.
+  security query suite. A separate digest-pinned Semgrep 1.172.0 job runs the
+  official PHP and security-audit registry policies over Laravel application,
+  route, configuration, and database code; scan errors and `ERROR` findings
+  fail the required gate, and its JSON evidence is retained for 14 days.
 - Digest-pinned Trivy 0.74.0 scans the repository for vulnerable dependencies,
   secrets, and misconfiguration, builds all three production image targets, and
   scans each image for fixed High/Critical vulnerabilities. Unfixed upstream
@@ -44,6 +46,7 @@ Node.js 20 or newer and a running Docker engine are required. From `FrontEnd`:
 
 ```bash
 npm run test:quality:repository
+npm run test:quality:php-sast
 npm run test:quality:dynamic
 ```
 

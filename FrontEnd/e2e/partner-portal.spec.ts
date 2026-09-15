@@ -49,7 +49,7 @@ test('partner portal publishes into one customer tenant and records receipt with
   await expect(page.getByText('It does not approve an order, claim, invoice, or internal workflow.')).toBeVisible();
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('status')).toContainText('without internal approval effect');
-  await expect(page.locator('.requisition-table tbody tr').filter({ hasText: DOCUMENT_NUMBER })).toContainText('ACKNOWLEDGED');
+  await expect(page.locator('.requisition-table tbody tr').filter({ hasText: DOCUMENT_NUMBER })).toContainText('Acknowledged');
 
   await page.getByRole('button', { name: 'Shipments', exact: true }).click();
   await expect(page.getByText('SHP-2026-0001', { exact: true })).toBeVisible();

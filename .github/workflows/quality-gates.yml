@@ -149,6 +149,31 @@ jobs:
         with:
           category: /language:${{ matrix.language }}
 
+  php-sast:
+    name: PHP static security analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+
+      - name: Scan Laravel PHP with Semgrep
+        run: node quality/run-php-security-gate.mjs
+
+      - name: Upload PHP SAST report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: semgrep-php-report
+          path: quality-results/semgrep-php.json
+          if-no-files-found: warn
+          retention-days: 14
+
   repository-security:
     name: Repository and release-image security
     runs-on: ubuntu-24.04
@@ -162,7 +187,7 @@ jobs:
 
       - name: Upload Trivy reports
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: trivy-security-reports
           path: quality-results/trivy-*.json
@@ -198,7 +223,7 @@ jobs:
 
       - name: Upload browser failure evidence
         if: failure()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: playwright-failure-evidence
           path: FrontEnd/test-results
@@ -223,7 +248,7 @@ jobs:
 
       - name: Upload dynamic quality reports
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: dynamic-quality-reports
           path: |
@@ -242,6 +267,7 @@ jobs:
       - frontend
       - dependency-review
       - codeql
+      - php-sast
       - repository-security
       - browser-e2e
       - dynamic-quality
@@ -254,6 +280,7 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           CODEQL_RESULT: ${{ needs.codeql.result }}
+          PHP_SAST_RESULT: ${{ needs.php-sast.result }}
           REPOSITORY_SECURITY_RESULT: ${{ needs.repository-security.result }}
           BROWSER_E2E_RESULT: ${{ needs.browser-e2e.result }}
           DYNAMIC_QUALITY_RESULT: ${{ needs.dynamic-quality.result }}
@@ -263,6 +290,7 @@ jobs:
             "$BACKEND_RESULT" \
             "$FRONTEND_RESULT" \
             "$CODEQL_RESULT" \
+            "$PHP_SAST_RESULT" \
             "$REPOSITORY_SECURITY_RESULT" \
             "$BROWSER_E2E_RESULT" \
             "$DYNAMIC_QUALITY_RESULT"

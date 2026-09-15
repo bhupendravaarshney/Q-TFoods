@@ -84,9 +84,15 @@ describe('P2 commercial and finance workspaces', () => {
     await user.clear(screen.getByLabelText('Monthly gross pay'));
     await user.type(screen.getByLabelText('Monthly gross pay'), '50000');
     await user.clear(screen.getByLabelText('Monthly deductions'));
-    await user.type(screen.getByLabelText('Monthly deductions'), '5000');
+    await user.type(screen.getByLabelText('Monthly deductions'), '50000');
     await user.selectOptions(screen.getByLabelText('Expense account'), 'expense-1');
     await user.selectOptions(screen.getByLabelText('Payroll payable account'), 'payable-1');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Monthly deductions must be less than monthly gross pay.')).toBeInTheDocument();
+    expect(api.commandP2).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText('Monthly deductions'));
+    await user.type(screen.getByLabelText('Monthly deductions'), '5000');
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(api.commandP2).toHaveBeenCalledWith('/api/v1/finance/employees', {

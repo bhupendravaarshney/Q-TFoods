@@ -166,6 +166,14 @@ async function createAuthenticatedZapConfig() {
 
 function showFailureLogs() {
   try {
+    process.stderr.write('\nDynamic-quality Compose service state:\n');
+    process.stderr.write(compose(['ps', '--all'], true));
+  } catch {
+    process.stderr.write('Unable to collect the disposable quality-stack service state.\n');
+  }
+
+  try {
+    process.stderr.write('\nDynamic-quality Compose service logs:\n');
     process.stderr.write(compose(['logs', '--no-color', '--tail', '300'], true));
   } catch {
     process.stderr.write('Unable to collect the disposable quality-stack logs.\n');

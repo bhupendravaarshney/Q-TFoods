@@ -4,6 +4,19 @@ import {
   type GovernedP2Config,
   type P2ActionSpec,
 } from './GovernedP2Workspace';
+import type { StructuredCommandSchema } from './StructuredCommandForm';
+
+const scaleSchemas = {
+  transferCreate: { required: ['transfer_number', 'plant_transfer_route_id', 'transfer_date', 'expected_arrival_date', 'lines[].source_position_id', 'lines[].destination_position_id', 'lines[].quantity_base'], minItems: { lines: 1 } },
+  transferUpdate: { required: ['transfer_date', 'expected_arrival_date', 'lines[].source_position_id', 'lines[].destination_position_id', 'lines[].quantity_base'], minItems: { lines: 1 } },
+  routeCreate: { required: ['route_code', 'destination_company_id', 'destination_plant_id', 'transfer_scope', 'name', 'currency', 'transit_days', 'markup_percent', 'mappings[].source_item_id', 'mappings[].destination_item_id', 'mappings[].source_uom_code', 'mappings[].destination_uom_code', 'mappings[].conversion_rate'], minItems: { mappings: 1 } },
+  routeUpdate: { required: ['name', 'currency', 'transit_days', 'markup_percent', 'mappings[].source_item_id', 'mappings[].destination_item_id', 'mappings[].source_uom_code', 'mappings[].destination_uom_code', 'mappings[].conversion_rate'], minItems: { mappings: 1 } },
+  groupCreate: { required: ['group_code', 'name', 'base_currency', 'members[].company_id', 'members[].member_code', 'members[].reporting_currency', 'members[].ownership_percent', 'members[].effective_from'], minItems: { members: 1 } },
+  groupUpdate: { required: ['name', 'base_currency', 'members[].company_id', 'members[].member_code', 'members[].reporting_currency', 'members[].ownership_percent', 'members[].effective_from'], minItems: { members: 1 } },
+  consolidation: { required: ['run_number', 'consolidation_group_id', 'cutoff_date', 'member_rates[].company_id', 'member_rates[].exchange_rate', 'eliminations[].description', 'eliminations[].debit_amount', 'eliminations[].credit_amount'], minItems: { member_rates: 1 } },
+  destinationReference: { required: ['destination_reference'] },
+  reason: { required: ['reason'] },
+} satisfies Record<string, StructuredCommandSchema>;
 
 export const scalePlantConfig: GovernedP2Config = {
   code: 'SCALE-PLANT',
@@ -66,23 +79,27 @@ export const scalePlantConfig: GovernedP2Config = {
       action: 'TRANSFER-CREATE', label: 'New transfer', path: '/api/v1/scale/transfers',
       help: 'Choose an active source lane and mapped stock positions. Quantities and stock identity are rechecked under row locks at dispatch.',
       available: (workspace) => Boolean(first(workspace, 'routes') && first(workspace, 'source_positions') && first(workspace, 'destination_positions')),
+      schema: scaleSchemas.transferCreate,
       template: transferTemplate,
     },
     {
       action: 'ROUTE-CREATE', label: 'New route', path: '/api/v1/scale/transfer-routes',
       help: 'Define an exact source-to-destination lane and explicit item/UOM conversion mappings.',
       available: (workspace) => rows(workspace, 'plants').some((plant) => plant.id !== scope(workspace).plant_id),
+      schema: scaleSchemas.routeCreate,
       template: routeTemplate,
     },
     {
       action: 'GROUP-CREATE', label: 'New group', path: '/api/v1/scale/consolidation-groups',
       help: 'Create the legal-entity boundary used by cross-company lanes and consolidation snapshots.',
+      schema: scaleSchemas.groupCreate,
       template: groupTemplate,
     },
     {
       action: 'CONSOLIDATE', label: 'New consolidation', path: '/api/v1/scale/consolidations',
       help: 'Capture balanced posted ledgers at one cutoff with explicit exchange rates and balanced eliminations.',
       available: (workspace) => Boolean(first(workspace, 'groups')),
+      schema: scaleSchemas.consolidation,
       template: consolidationTemplate,
     },
   ],
@@ -107,13 +124,13 @@ function resolveScaleAction(action: string, record: P2Record): P2ActionSpec | nu
         quantity_base: field(line, 'source_quantity', '1'),
         notes: nullableField(line, 'notes'),
       })),
-    }, record);
+    }, record, scaleSchemas.transferUpdate);
     if (action === 'SUBMIT') return run(`${base}/submit`, 'Transfer submitted for independent source approval.', record);
     if (action === 'APPROVE') return run(`${base}/approve`, 'Transfer independently approved at source.', record);
-    if (action === 'ACCEPT') return editor('Accept cross-company transfer', 'Record the destination-side commercial document before the stock can leave source.', `${base}/accept`, { destination_reference: '' }, record);
+    if (action === 'ACCEPT') return editor('Accept cross-company transfer', 'Record the destination-side commercial document before the stock can leave source.', `${base}/accept`, { destination_reference: '' }, record, scaleSchemas.destinationReference);
     if (action === 'DISPATCH') return run(`${base}/dispatch`, 'Source stock dispatched into governed transit.', record);
     if (action === 'RECEIVE') return run(`${base}/receive`, 'Destination stock received with linked inbound movement evidence.', record);
-    if (action === 'CANCEL') return editor('Cancel transfer', 'Record why this unshipped transfer is being cancelled.', `${base}/cancel`, { reason: '' }, record);
+    if (action === 'CANCEL') return editor('Cancel transfer', 'Record why this unshipped transfer is being cancelled.', `${base}/cancel`, { reason: '' }, record, scaleSchemas.reason);
   }
 
   if (record._kind === 'route') {
@@ -126,9 +143,9 @@ function resolveScaleAction(action: string, record: P2Record): P2ActionSpec | nu
         source_uom_code: field(mapping, 'source_uom_code'), destination_uom_code: field(mapping, 'destination_uom_code'),
         conversion_rate: field(mapping, 'conversion_rate', '1'),
       })),
-    }, record);
+    }, record, scaleSchemas.routeUpdate);
     if (action === 'ACTIVATE') return run(`${base}/activate`, 'Transfer route activated after endpoint and mapping validation.', record);
-    if (action === 'DEACTIVATE') return editor('Deactivate transfer route', 'Open transfers must be completed or cancelled first.', `${base}/deactivate`, { reason: '' }, record);
+    if (action === 'DEACTIVATE') return editor('Deactivate transfer route', 'Open transfers must be completed or cancelled first.', `${base}/deactivate`, { reason: '' }, record, scaleSchemas.reason);
   }
 
   if (record._kind === 'group') {
@@ -141,9 +158,9 @@ function resolveScaleAction(action: string, record: P2Record): P2ActionSpec | nu
         ownership_percent: field(member, 'ownership_percent', '100'),
         effective_from: field(member, 'effective_from', today()), effective_to: nullableField(member, 'effective_to'),
       })),
-    }, record);
+    }, record, scaleSchemas.groupUpdate);
     if (action === 'ACTIVATE') return run(`${base}/activate`, 'Consolidation group activated across its authorised entities.', record);
-    if (action === 'RETIRE') return editor('Retire consolidation group', 'Every active route must be deactivated before retirement.', `${base}/retire`, { reason: '' }, record);
+    if (action === 'RETIRE') return editor('Retire consolidation group', 'Every active route must be deactivated before retirement.', `${base}/retire`, { reason: '' }, record, scaleSchemas.reason);
   }
 
   if (record._kind === 'consolidation' && action === 'FINALIZE') {
@@ -216,8 +233,8 @@ function consolidationTemplate(workspace: P2Workspace): unknown {
   };
 }
 
-function editor(label: string, help: string, path: string, body: unknown, record: P2Record): P2ActionSpec {
-  return { editor: { label, help, path, body, expectedVersion: record.record_version } };
+function editor(label: string, help: string, path: string, body: unknown, record: P2Record, schema: StructuredCommandSchema): P2ActionSpec {
+  return { editor: { label, help, path, body, schema, expectedVersion: record.record_version } };
 }
 
 function run(path: string, success: string, record: P2Record): P2ActionSpec {

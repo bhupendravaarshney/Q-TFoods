@@ -12,6 +12,7 @@
     "test:e2e": "playwright test",
     "test:e2e:a11y": "playwright test e2e/accessibility-edge-cases.spec.ts",
     "test:e2e:install": "playwright install chromium",
+    "test:quality:php-sast": "node ../quality/run-php-security-gate.mjs",
     "test:quality:dynamic": "node ../quality/run-dynamic-gates.mjs",
     "test:quality:repository": "node ../quality/run-repository-security-gates.mjs"
   },

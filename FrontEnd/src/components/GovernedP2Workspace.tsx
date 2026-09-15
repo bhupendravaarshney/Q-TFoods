@@ -5,7 +5,7 @@ import { useErpSession } from '../app/ErpSessionContext';
 import { PageHeader } from './PageHeader';
 import { StatusBadge } from './StatusBadge';
 import { SummaryStrip } from './ManufacturingWorkspaceShell';
-import { collectRequiredCommandPaths, StructuredCommandForm, validateStructuredCommand } from './StructuredCommandForm';
+import { StructuredCommandForm, validateStructuredCommand, type StructuredCommandSchema } from './StructuredCommandForm';
 
 export type P2Column = { label: string; key: string; format?: 'date' | 'money' | 'number' | 'text' };
 export type P2Collection = { key: string; label: string; columns: P2Column[]; detailPath?: (record: P2Record) => string; kind?: string; showStatus?: boolean };
@@ -15,10 +15,11 @@ export type P2Creator = {
   path: string | ((workspace: P2Workspace) => string);
   help: string;
   template: (workspace: P2Workspace) => unknown;
+  schema: StructuredCommandSchema;
   expectedVersion?: (workspace: P2Workspace) => number | undefined;
   available?: (workspace: P2Workspace) => boolean;
 };
-export type P2EditorSpec = { label: string; help: string; path: string; body: unknown; expectedVersion?: number };
+export type P2EditorSpec = { label: string; help: string; path: string; body: unknown; schema: StructuredCommandSchema; expectedVersion?: number };
 export type P2RunSpec = { path: string; body?: unknown; expectedVersion?: number; success: string };
 export type P2ActionSpec = P2RunSpec | { editor: P2EditorSpec } | { downloadPath: string; filename: string };
 
@@ -35,7 +36,7 @@ export type GovernedP2Config = {
   resolveAction?: (action: string, record: P2Record, workspace: P2Workspace) => P2ActionSpec | null;
 };
 
-type EditorState = P2EditorSpec & { requiredPaths: string[] };
+type EditorState = P2EditorSpec;
 type Feedback = { error: string | null; success: string | null; fields: Record<string, string> };
 
 export function GovernedP2Workspace({ config }: { config: GovernedP2Config }) {
@@ -86,12 +87,12 @@ export function GovernedP2Workspace({ config }: { config: GovernedP2Config }) {
     if (!workspace) return;
     const body = creator.template(workspace);
     setSelected(null); setFeedback(clear());
-    setEditor({ label: creator.label, help: creator.help, path: typeof creator.path === 'function' ? creator.path(workspace) : creator.path, expectedVersion: creator.expectedVersion?.(workspace), body, requiredPaths: collectRequiredCommandPaths(body) });
+    setEditor({ label: creator.label, help: creator.help, path: typeof creator.path === 'function' ? creator.path(workspace) : creator.path, expectedVersion: creator.expectedVersion?.(workspace), body, schema: creator.schema });
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault(); if (!editor) return;
-    const fields = validateStructuredCommand(editor.body, editor.requiredPaths);
+    const fields = validateStructuredCommand(editor.body, editor.schema);
     if (Object.keys(fields).length) { setFeedback({ error: 'Please correct the highlighted fields before saving.', success: null, fields }); return; }
     setBusy(true);
     try {
@@ -105,7 +106,7 @@ export function GovernedP2Workspace({ config }: { config: GovernedP2Config }) {
   async function act(action: string) {
     if (!selected || !workspace || !config.resolveAction) return;
     const spec = config.resolveAction(action, selected, workspace); if (!spec) return;
-    if ('editor' in spec) { const value = spec.editor; setFeedback(clear()); setEditor({ ...value, requiredPaths: collectRequiredCommandPaths(value.body) }); return; }
+    if ('editor' in spec) { const value = spec.editor; setFeedback(clear()); setEditor(value); return; }
     if ('downloadPath' in spec) {
       setBusy(true);
       try { const blob = await downloadP2(spec.downloadPath); saveBlob(blob, spec.filename); setFeedback({ error: null, success: 'Private document downloaded after scope and permission verification.', fields: {} }); }
@@ -156,7 +157,7 @@ function Register({ records, columns, showStatus, selectedId, onOpen }: { record
 }
 
 function CommandEditor({ editor, setEditor, workspace, busy, submit, close, fields }: { editor: EditorState; setEditor: (value: EditorState) => void; workspace: P2Workspace | null; busy: boolean; submit: (event: FormEvent) => void; close: () => void; fields: Record<string, string> }) {
-  return <form className="p2-command-editor" onSubmit={submit} noValidate><fieldset disabled={busy}><div className="detail-status"><StatusBadge status="DRAFT ENTRY" /><span>* Required fields</span></div><h3>{editor.label}</h3><p>{editor.help}</p><StructuredCommandForm value={editor.body} workspace={workspace} errors={fields} requiredPaths={editor.requiredPaths} onChange={(body) => setEditor({ ...editor, body })} /><div className="callout">Available choices come from your selected company and workplace. Totals, stock, credit, accounting periods, and approvals are checked automatically when you save.</div><div className="form-actions"><button className="secondary" type="button" onClick={close}>Close</button><button className="primary" type="submit">Save</button></div></fieldset></form>;
+  return <form className="p2-command-editor" onSubmit={submit} noValidate><fieldset disabled={busy}><div className="detail-status"><StatusBadge status="DRAFT ENTRY" /><span>* Required fields</span></div><h2>{editor.label}</h2><p>{editor.help}</p><StructuredCommandForm value={editor.body} workspace={workspace} errors={fields} schema={editor.schema} onChange={(body) => setEditor({ ...editor, body })} /><div className="callout">Available choices come from your selected company and workplace. Totals, stock, credit, accounting periods, and approvals are checked automatically when you save.</div><div className="form-actions"><button className="secondary" type="button" onClick={close}>Close</button><button className="primary" type="submit">Save</button></div></fieldset></form>;
 }
 
 function RecordDetail({ record, busy, onAction }: { record: P2Record; busy: boolean; onAction: (action: string) => void }) {

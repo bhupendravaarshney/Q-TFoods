@@ -40,7 +40,7 @@ test('Operations Manager creates, updates, and places a complete customer party 
   await editor.getByLabel('Party status reason').fill('E2E credit review');
   await editor.getByRole('button', { name: 'Apply status' }).click();
   await expect(editor.getByRole('status')).toContainText('moved to On hold at version 3');
-  await expect(row).toContainText('ON_HOLD');
+  await expect(row).toContainText('On hold');
 });
 
 async function loginAndSelect(page: Page): Promise<void> {

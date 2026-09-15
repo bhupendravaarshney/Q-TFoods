@@ -192,7 +192,7 @@ export default function ADM_ORG() {
           </section>
 
           <aside className="panel admin-editor">
-            <div className="panel-head"><h3>{editorTitle(editor, selectedPlant)}</h3><span>{editor === 'plant' ? `v${selectedPlant?.record_version ?? '-'}` : 'Controlled command'}</span></div>
+            <div className="panel-head"><h3>{editorTitle(editor, selectedPlant)}</h3><span>{editor === 'plant' ? `Version ${selectedPlant?.record_version ?? '-'}` : 'Controlled change'}</span></div>
             <form className="panel-body form-grid admin-form" onSubmit={submit} noValidate>
               {error && <div className="form-error full" role="alert"><span>{error}</span></div>}
               {success && <div className="form-success full" role="status"><span></span>{success}</div>}

@@ -20,7 +20,7 @@ test('manufacturing planning releases demand, runs MRP, schedules capacity, and 
   await expect(editor.getByRole('status')).toContainText('Draft demand plan created');
   await editor.getByRole('button', { name: 'Release to MRP' }).click();
   await expect(editor.getByRole('status')).toContainText('Demand released to MRP');
-  await expect(editor.locator('.status').filter({ hasText: /^RELEASED$/ })).toBeVisible();
+  await expect(editor.locator('.status').filter({ hasText: /^Released$/ })).toBeVisible();
 
   await navigation.locator('[data-screen-code="PLAN-MRP"]').click();
   await expect(page.getByRole('heading', { name: 'Material Requirements Planning' })).toBeVisible();
@@ -53,8 +53,8 @@ test('manufacturing planning releases demand, runs MRP, schedules capacity, and 
   page.once('dialog', (dialog) => dialog.accept('E2E production window withdrawn after planning verification.'));
   await editor.getByRole('button', { name: 'Cancel' }).click();
   await expect(editor.getByRole('status')).toContainText('linked reservations released');
-  await expect(editor.locator('.status').filter({ hasText: /^CANCELLED$/ })).toBeVisible();
-  await expect(editor).toContainText('RELEASED');
+  await expect(editor.locator('.status').filter({ hasText: /^Cancelled$/ })).toBeVisible();
+  await expect(editor).toContainText('Released');
 
   await navigation.locator('[data-screen-code="PLAN-MRP"]').click();
   await page.getByLabel('Search', { exact: true }).fill('E2E-PLAN-MRP-001');

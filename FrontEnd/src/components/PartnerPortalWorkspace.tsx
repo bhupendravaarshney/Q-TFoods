@@ -131,7 +131,7 @@ export function PartnerPortalWorkspace() {
       setSuccess(successMessage(editor.kind)); setEditor(null); setSelected(null); setFile(null);
       await refresh();
     } catch (caught) {
-      setError(errorMessage(caught, 'Unable to complete the portal command.'));
+      setError(errorMessage(caught, 'Unable to complete the portal action.'));
     } finally {
       setBusy(false);
     }
@@ -215,7 +215,7 @@ export function PartnerPortalWorkspace() {
     <PageHeader code="PORTAL-EXT" batch="P3 external" title="Partner Portal" description="Exchange commercial records and documents inside an explicit party tenant." />
     <div className="live-notice p2-live-notice"><span />{internal
       ? 'Internal administration view. Access grants bind one external identity to one customer party and plant context.'
-      : `External tenant: ${partnerName}. Every read and command is constrained to this exact party; acknowledgements record receipt only and never approve an internal workflow.`}</div>
+      : `External organisation: ${partnerName}. Every view and action is limited to this organisation; acknowledgements record receipt only and never approve an internal workflow.`}</div>
     {workspace?.summary ? <SummaryStrip summary={workspace.summary} /> : null}
     <div className="workspace-tabs p2-command-tabs">
       {tabs.map((item) => <button key={item.key} className={item.key === tabKey ? 'active' : ''} type="button" onClick={() => { setTabKey(item.key); setSelected(null); setEditor(null); }}>{item.label}</button>)}
@@ -235,7 +235,7 @@ export function PartnerPortalWorkspace() {
         {success ? <div className="form-success" role="status"><span />{success}</div> : null}
         {editor ? <PortalEditor editor={editor} workspace={workspace} file={file} setFile={setFile} update={updateDraft} submit={submit} close={() => { setEditor(null); setFile(null); }} busy={busy} />
           : selected ? <PortalDetail record={selected} tabKey={tabKey} canClaim={Boolean(!internal && actions.includes('CLAIM-CREATE'))} action={recordAction} claim={() => startClaim(selected)} busy={busy} />
-            : <Empty text={internal ? 'Choose a grant or document, or start a governed portal command.' : 'Choose one of your entitled records or start a document/claim exchange.'} />}
+            : <Empty text={internal ? 'Choose an access grant or document, or start a new portal entry.' : 'Choose one of your available records or start a document or claim exchange.'} />}
       </div></aside>
     </div>
   </>;
@@ -266,7 +266,7 @@ function Related({ title, values: relatedValues }: { title: string; values: unkn
 }
 
 function PortalEditor({ editor, workspace, file, setFile, update, submit, close, busy }: { editor: Editor; workspace: PortalWorkspace | null; file: File | null; setFile: (file: File | null) => void; update: (field: string, value: string | string[]) => void; submit: (event: FormEvent) => void; close: () => void; busy: boolean }) {
-  return <form className="p2-command-editor p2-archive-form portal-command" onSubmit={submit}><fieldset disabled={busy}><div className="detail-status"><StatusBadge status="NEW ENTRY" /><span>Checked when saved</span></div><h3>{editor.title}</h3>
+  return <form className="p2-command-editor p2-archive-form portal-command" onSubmit={submit}><fieldset disabled={busy}><div className="detail-status"><StatusBadge status="NEW ENTRY" /><span>Checked when saved</span></div><h2>{editor.title}</h2>
     {(editor.kind === 'GRANT' || editor.kind === 'GRANT_UPDATE') ? <GrantFields editor={editor} workspace={workspace} update={update} /> : null}
     {(editor.kind === 'PUBLISH' || editor.kind === 'UPLOAD') ? <DocumentFields editor={editor} workspace={workspace} file={file} setFile={setFile} update={update} /> : null}
     {editor.kind === 'CLAIM' ? <ClaimFields editor={editor} workspace={workspace} update={update} /> : null}

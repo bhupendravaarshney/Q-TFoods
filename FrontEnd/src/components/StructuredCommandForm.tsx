@@ -7,17 +7,28 @@ type LookupCollection = { key: string; rows: LookupRow[] };
 type PrimitiveCollection = { key: string; values: Array<string | number> };
 type LookupCatalog = { records: LookupCollection[]; primitives: PrimitiveCollection[] };
 
+export type StructuredCommandSchema = {
+  required: readonly string[];
+  minItems?: Readonly<Record<string, number>>;
+  atLeastOne?: readonly { paths: readonly string[]; message?: string }[];
+  requiredWhen?: readonly {
+    path: string;
+    equals: string | number | boolean;
+    required: readonly string[];
+  }[];
+};
+
 type StructuredCommandFormProps = {
   value: unknown;
   workspace: P2Workspace | null;
   errors: Record<string, string>;
-  requiredPaths: string[];
+  schema: StructuredCommandSchema;
   onChange: (value: unknown) => void;
 };
 
-export function StructuredCommandForm({ value, workspace, errors, requiredPaths, onChange }: StructuredCommandFormProps) {
+export function StructuredCommandForm({ value, workspace, errors, schema, onChange }: StructuredCommandFormProps) {
   const catalog = useMemo(() => buildLookupCatalog(workspace), [workspace]);
-  const required = useMemo(() => new Set(requiredPaths), [requiredPaths]);
+  const required = useMemo(() => effectiveRequiredPaths(value, schema), [schema, value]);
   const record = isRecord(value) ? value : {};
 
   return <div className="form-grid p2-entry-grid">
@@ -34,35 +45,18 @@ export function StructuredCommandForm({ value, workspace, errors, requiredPaths,
   </div>;
 }
 
-export function collectRequiredCommandPaths(value: unknown): string[] {
-  const paths = new Set<string>();
-
-  function visit(current: unknown, path: PathPart[]) {
-    if (Array.isArray(current)) {
-      if (current.length) paths.add(`@array:${normalisedPath(path)}`);
-      current.forEach((item, index) => visit(item, [...path, index]));
-      return;
-    }
-    if (isRecord(current)) {
-      Object.entries(current).forEach(([key, item]) => visit(item, [...path, key]));
-      return;
-    }
-    if (current !== null && current !== undefined && typeof current !== 'boolean') paths.add(normalisedPath(path));
-  }
-
-  visit(value, []);
-  return Array.from(paths);
-}
-
-export function validateStructuredCommand(value: unknown, requiredPaths: string[]): Record<string, string> {
+export function validateStructuredCommand(value: unknown, schema: StructuredCommandSchema): Record<string, string> {
   const errors: Record<string, string> = {};
-  const required = new Set(requiredPaths);
+  const required = effectiveRequiredPaths(value, schema);
 
   function visit(current: unknown, path: PathPart[], fieldKey = '') {
     const exactPath = fieldPath(path);
     const pattern = normalisedPath(path);
     if (Array.isArray(current)) {
-      if (required.has(`@array:${pattern}`) && current.length === 0) errors[exactPath] = `Add at least one ${singularLabel(fieldKey).toLowerCase()}.`;
+      const minimum = schema.minItems?.[pattern] ?? 0;
+      if (current.length < minimum) {
+        errors[exactPath] = `Add at least ${minimum === 1 ? 'one' : minimum} ${minimum === 1 ? singularLabel(fieldKey).toLowerCase() : friendlyFieldLabel(fieldKey).toLowerCase()}.`;
+      }
       current.forEach((item, index) => visit(item, [...path, index], fieldKey));
       return;
     }
@@ -80,6 +74,11 @@ export function validateStructuredCommand(value: unknown, requiredPaths: string[
   }
 
   visit(value, []);
+  for (const rule of schema.atLeastOne ?? []) {
+    if (rule.paths.some((path) => !blankValue(readSchemaPath(value, path)))) continue;
+    const message = rule.message ?? `Enter at least one of ${rule.paths.map((path) => friendlyFieldLabel(path.split('.').at(-1) ?? path).toLowerCase()).join(' or ')}.`;
+    rule.paths.forEach((path) => { errors[path] = message; });
+  }
   if (isRecord(value)) {
     const gross = Number(value.monthly_gross);
     const deductions = Number(value.monthly_deductions);
@@ -88,6 +87,27 @@ export function validateStructuredCommand(value: unknown, requiredPaths: string[
     }
   }
   return errors;
+}
+
+function effectiveRequiredPaths(value: unknown, schema: StructuredCommandSchema): Set<string> {
+  const paths = new Set(schema.required);
+  Object.entries(schema.minItems ?? {}).forEach(([path, minimum]) => {
+    if (minimum > 0) paths.add(`@array:${path}`);
+  });
+  for (const condition of schema.requiredWhen ?? []) {
+    if (readSchemaPath(value, condition.path) === condition.equals) {
+      condition.required.forEach((path) => paths.add(path));
+    }
+  }
+  return paths;
+}
+
+function readSchemaPath(value: unknown, path: string): unknown {
+  return path.split('.').reduce<unknown>((current, key) => isRecord(current) ? current[key] : undefined, value);
+}
+
+function blankValue(value: unknown): boolean {
+  return value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
 }
 
 function CommandField({ fieldKey, value, path, catalog, errors, required, onChange }: {
@@ -129,7 +149,7 @@ function ScalarField({ fieldKey, value, path, catalog, errors, required, onChang
   if (typeof value === 'boolean') {
     return <label className="p2-check-field full-span">
       <input {...common} type="checkbox" checked={value} onChange={(event) => onChange(path, event.target.checked)} />
-      <span><b>{title}</b><small>{booleanHint(fieldKey)}</small></span>
+      <span><b>{title}<RequiredMark show={requiredField} /></b><small>{booleanHint(fieldKey)}</small></span>
       <FieldError id={errorId} text={error} />
     </label>;
   }
@@ -219,7 +239,7 @@ function ArrayField({ fieldKey, value, path, catalog, errors, required, onChange
 
   const objectRows = value.every(isRecord);
   return <section className="p2-entry-section full-span" data-field-path={pathText}>
-    <div className="p2-entry-section-head"><div><h4>{title}</h4><small>{arrayHelp(fieldKey, objectRows)}</small></div>
+    <div className="p2-entry-section-head"><div><h3>{title}</h3><small>{arrayHelp(fieldKey, objectRows)}</small></div>
       {objectRows && value.length ? <button className="secondary compact-button" type="button" onClick={() => onChange(path, [...value, newArrayRow(value[0])])}>+ Add {singularLabel(fieldKey).toLowerCase()}</button> : null}
     </div>
     <FieldError text={error} />
@@ -256,7 +276,7 @@ function ObjectField({ fieldKey, value, path, catalog, errors, required, onChang
 }) {
   const entries = Object.entries(value);
   return <section className="p2-entry-section full-span">
-    <div className="p2-entry-section-head"><div><h4>{friendlyFieldLabel(fieldKey)}</h4><small>{entries.length ? 'Complete the related details below.' : 'No additional details are needed.'}</small></div></div>
+    <div className="p2-entry-section-head"><div><h3>{friendlyFieldLabel(fieldKey)}</h3><small>{entries.length ? 'Complete the related details below.' : 'No additional details are needed.'}</small></div></div>
     {entries.length ? <div className="form-grid p2-entry-grid nested">{entries.map(([key, fieldValue]) => <CommandField key={key} fieldKey={key} value={fieldValue} path={[...path, key]} catalog={catalog} errors={errors} required={required} onChange={onChange} />)}</div> : null}
   </section>;
 }
@@ -315,10 +335,14 @@ function suitableReferenceRows(fieldKey: string, rows: LookupRow[]): LookupRow[]
 }
 
 function primitiveOptions(fieldKey: string, currentValue: unknown, catalog: LookupCatalog): string[] {
+  if (!primitiveChoiceField(fieldKey)) return [];
   const current = currentValue === null || currentValue === undefined ? '' : String(currentValue);
-  const matching = current ? catalog.primitives.filter((collection) => collection.values.map(String).includes(current)) : [];
   const semantic = catalog.primitives.filter((collection) => lookupScore(fieldKey, collection.key) > 0);
-  const collection = [...matching, ...semantic].sort((left, right) => lookupScore(fieldKey, right.key) - lookupScore(fieldKey, left.key))[0];
+  const collection = semantic.sort((left, right) => {
+    const leftContains = current && left.values.map(String).includes(current) ? 10 : 0;
+    const rightContains = current && right.values.map(String).includes(current) ? 10 : 0;
+    return (lookupScore(fieldKey, right.key) + rightContains) - (lookupScore(fieldKey, left.key) + leftContains);
+  })[0];
   const known = KNOWN_CHOICES[fieldKey] ?? [];
   return Array.from(new Set([...(collection?.values.map(String) ?? []), ...known, ...(current ? [current] : [])]));
 }
@@ -407,7 +431,11 @@ function stringValue(value: unknown): string { return value === null || value ==
 function dateTimeInputValue(value: unknown): string { return stringValue(value).replace(/Z$/, '').slice(0, 16); }
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function fieldPath(path: PathPart[]): string { return path.map(String).join('.'); }
-function normalisedPath(path: PathPart[]): string { return path.map((part) => typeof part === 'number' ? '*' : part).join('.'); }
+function normalisedPath(path: PathPart[]): string {
+  return path.reduce<string>((result, part) => typeof part === 'number'
+    ? `${result}[]`
+    : result ? `${result}.${part}` : part, '');
+}
 function errorFor(errors: Record<string, string>, path: string): string | undefined { return errors[path] ?? errors[path.replace(/\.(\d+)\./g, '.*.')]; }
 function tokens(value: string): string[] { return value.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(singular); }
 function singular(value: string): string { return value.endsWith('ies') ? `${value.slice(0, -3)}y` : value.endsWith('s') && !value.endsWith('ss') ? value.slice(0, -1) : value; }
@@ -439,6 +467,21 @@ function singularLabel(fieldKey: string): string {
 }
 
 function formatChoice(value: string): string { return value.toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ').replace(/\b\w/g, (character) => character.toUpperCase()); }
+function primitiveChoiceField(fieldKey: string): boolean {
+  return Boolean(KNOWN_CHOICES[fieldKey])
+    || fieldKey === 'source'
+    || fieldKey === 'category'
+    || fieldKey === 'priority'
+    || fieldKey === 'severity'
+    || fieldKey === 'currency'
+    || fieldKey === 'uom_code'
+    || fieldKey === 'allocation_basis'
+    || fieldKey === 'payment_method'
+    || fieldKey === 'classification'
+    || fieldKey === 'transfer_scope'
+    || fieldKey.endsWith('_type')
+    || fieldKey.endsWith('_status');
+}
 function referenceField(fieldKey: string): boolean { return fieldKey.endsWith('_id'); }
 function emailField(fieldKey: string): boolean { return fieldKey.includes('email'); }
 function phoneField(fieldKey: string): boolean { return fieldKey.includes('phone'); }

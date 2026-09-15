@@ -167,7 +167,7 @@ export const screenRegistry: ScreenDefinition[] = [
     "title": "Stock & Lots",
     "area": "Master / Procurement / Stock",
     "batch": "B11",
-    "description": "Live owner, lot, expiry, quality, availability and reservation registers with scoped optimistic commands."
+    "description": "Live owner, lot, expiry, quality, availability and reservation registers with controlled workplace updates."
   },
   {
     "code": "INV-ISS",

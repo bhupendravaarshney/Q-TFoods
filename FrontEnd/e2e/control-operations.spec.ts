@@ -31,7 +31,7 @@ test('ERP Administrator traces a scoped change through audit evidence and outbox
   await expect(outboxRow).toBeVisible();
   await page.getByRole('button', { name: 'Process due now' }).click();
   await expect(page.getByRole('status')).toContainText('Processing complete');
-  await expect(outboxRow).toContainText('DELIVERED');
+  await expect(outboxRow).toContainText('Delivered');
   await outboxRow.getByRole('button', { name: 'Open' }).click();
   await expect(page.locator('.control-detail')).toContainText('log:');
   await expect(page.locator('.control-detail')).toContainText('Attempt 1');

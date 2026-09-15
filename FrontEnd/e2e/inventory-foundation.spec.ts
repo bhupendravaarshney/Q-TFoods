@@ -26,7 +26,7 @@ test('Operations Manager governs stock ownership, lots, and reservations', async
   await editor.getByLabel('Reservation release reason').fill('E2E production schedule cancelled');
   await reservation.getByRole('button', { name: 'Release reservation' }).click();
   await expect(editor.getByRole('status')).toContainText('RSV-E2E-001 was released');
-  await expect(editor.locator('.reservation-card').filter({ hasText: 'RSV-E2E-001' })).toContainText('RELEASED');
+  await expect(editor.locator('.reservation-card').filter({ hasText: 'RSV-E2E-001' })).toContainText('Released');
 
   await page.getByRole('button', { name: 'Owners', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Inventory owner register' })).toBeVisible();

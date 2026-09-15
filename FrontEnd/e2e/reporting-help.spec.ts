@@ -36,7 +36,7 @@ test('finance reporting and requester-to-manager support handoff are live and go
   await page.getByRole('button', { name: 'Open support case' }).click();
   await expect(page.getByRole('status')).toContainText('opened in the selected plant support queue');
   await expect(page.locator('.help-case-detail')).toContainText(SUPPORT_SUBJECT);
-  await expect(page.locator('.help-case-detail')).toContainText('OPEN');
+  await expect(page.locator('.help-case-detail')).toContainText('Open');
   await logout(page);
 
   await loginAndSelect(page, 'admin.user@qtfoods.local');
@@ -52,7 +52,7 @@ test('finance reporting and requester-to-manager support handoff are live and go
   await page.getByLabel('Resolution summary').fill('The report detail now records both the immutable cutoff and the latest included source timestamp.');
   await page.getByRole('button', { name: 'Record proposed resolution' }).click();
   await expect(page.getByRole('status')).toContainText('Resolution recorded for requester confirmation');
-  await expect(page.locator('.help-case-detail')).toContainText('RESOLVED');
+  await expect(page.locator('.help-case-detail')).toContainText('Resolved');
   await logout(page);
 
   await loginAndSelect(page, 'demo.user@qtfoods.local');
@@ -62,13 +62,13 @@ test('finance reporting and requester-to-manager support handoff are live and go
   const requesterRow = page.locator('.help-case-register tbody tr').filter({ hasText: SUPPORT_SUBJECT });
   await expect(requesterRow).toBeVisible();
   await requesterRow.getByRole('button', { name: 'Open' }).click();
-  await expect(page.locator('.help-timeline')).toContainText('STARTED');
-  await expect(page.locator('.help-timeline')).toContainText('RESOLVED');
+  await expect(page.locator('.help-timeline')).toContainText('Started');
+  await expect(page.locator('.help-timeline')).toContainText('Resolved');
   await page.getByRole('button', { name: 'Confirm & close' }).click();
-  await page.getByLabel('Confirmation').fill('Confirmed that cutoff and source freshness are visible in the report evidence.');
+  await page.getByRole('textbox', { name: 'Confirmation', exact: true }).fill('Confirmed that cutoff and source freshness are visible in the report evidence.');
   await page.getByRole('button', { name: 'Confirm and close' }).click();
   await expect(page.getByRole('status')).toContainText('closed the case');
-  await expect(page.locator('.help-case-detail')).toContainText('CLOSED');
+  await expect(page.locator('.help-case-detail')).toContainText('Closed');
   await expect(page.getByText('PROTOTYPE / DEMO DATA')).toHaveCount(0);
 });
 

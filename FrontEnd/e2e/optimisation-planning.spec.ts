@@ -49,7 +49,7 @@ test('optimisation versions demand, exposes limitations, requires review, and cl
   await expect(editor.getByText(/not a capacity booking/i)).toBeVisible();
   await editor.getByRole('button', { name: 'Submit for review' }).click();
   await expect(editor.getByRole('status')).toContainText('independent human decision');
-  await expect(editor.locator('.status').filter({ hasText: /^SUBMITTED$/ }).first()).toBeVisible();
+  await expect(editor.locator('.status').filter({ hasText: /^Submitted$/ }).first()).toBeVisible();
   await logout(page);
 
   await loginAndSelect(page, 'finance.user@qtfoods.local');
@@ -58,7 +58,7 @@ test('optimisation versions demand, exposes limitations, requires review, and cl
   await editor.getByLabel('Decision evidence').fill('Reviewed the source version, checksum, cost scope, capacity warning, and service assumption.');
   await editor.getByRole('button', { name: 'Approve independently' }).click();
   await expect(editor.getByRole('status')).toContainText('independently approved');
-  await expect(editor.locator('.status').filter({ hasText: /^APPROVED$/ }).first()).toBeVisible();
+  await expect(editor.locator('.status').filter({ hasText: /^Approved$/ }).first()).toBeVisible();
   await logout(page);
 
   await loginAndSelect(page, 'operations.user@qtfoods.local');
@@ -70,7 +70,7 @@ test('optimisation versions demand, exposes limitations, requires review, and cl
   await expect(editor.getByText(/outcome v1/i)).toBeVisible();
   await editor.getByRole('button', { name: 'Complete after outcomes' }).click();
   await expect(editor.getByRole('status')).toContainText('completed after every recommendation received an outcome');
-  await expect(editor.locator('.status').filter({ hasText: /^COMPLETED$/ }).first()).toBeVisible();
+  await expect(editor.locator('.status').filter({ hasText: /^Completed$/ }).first()).toBeVisible();
   await expect(page.getByText('PROTOTYPE / DEMO DATA')).toHaveCount(0);
 });
 

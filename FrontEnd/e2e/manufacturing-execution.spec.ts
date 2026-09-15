@@ -93,7 +93,7 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
   await editor.getByLabel('NET-WEIGHT notes').fill('Within the release specification.');
   await editor.getByRole('button', { name: 'Complete and evaluate sample' }).click();
   await expect(editor.getByRole('status')).toContainText('Sample completed');
-  await expect(editor.locator('.status').filter({ hasText: /^PASSED$/ })).toBeVisible();
+  await expect(editor.locator('.status').filter({ hasText: /^Passed$/ })).toBeVisible();
 
   await navigation.locator('[data-screen-code="QC-SAFE"]').click();
   await page.getByRole('button', { name: '+ New' }).click();

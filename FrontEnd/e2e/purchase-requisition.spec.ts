@@ -32,7 +32,7 @@ test('Operations sources an approved requisition and controls its purchase order
 
   await editor.getByRole('button', { name: 'Submit requisition' }).click();
   await expect(editor.getByRole('status')).toContainText('submitted to the governed approval queue');
-  await expect(editor.locator('.status').filter({ hasText: /^SUBMITTED$/ })).toBeVisible();
+  await expect(editor.locator('.status').filter({ hasText: /^Submitted$/ })).toBeVisible();
   await page.getByRole('button', { name: 'Sign out' }).click();
 
   await loginAndSelect(page, 'finance.user@qtfoods.local');
@@ -41,14 +41,15 @@ test('Operations sources an approved requisition and controls its purchase order
   await expect(page.getByRole('heading', { name: 'Requisition approval inbox' })).toBeVisible();
 
   const inbox = page.locator('.requisition-approval-inbox');
-  await expect(inbox.locator('[data-screen-code="E2E-REQ-001"]')).toBeVisible();
-  await inbox.locator('[data-screen-code="E2E-REQ-001"]').click();
+  const approvalButton = inbox.getByRole('button', { name: /^E2E-REQ-001\b/ });
+  await expect(approvalButton).toBeVisible();
+  await approvalButton.click();
   await editor.getByLabel('Approval reason').fill('Demand, budget, and required date confirmed.');
   await editor.getByRole('button', { name: 'Approve requisition' }).click();
   await expect(editor.getByRole('status')).toContainText('Purchase requisition approved');
-  await expect(editor.locator('.status').filter({ hasText: /^APPROVED$/ })).toBeVisible();
+  await expect(editor.locator('.status').filter({ hasText: /^Approved$/ })).toBeVisible();
   await expect(editor).toContainText('Demo Finance Manager');
-  await expect(inbox.locator('[data-screen-code="E2E-REQ-001"]')).toHaveCount(0);
+  await expect(approvalButton).toHaveCount(0);
   await page.getByRole('button', { name: 'Sign out' }).click();
 
   await loginAndSelect(page, 'operations.user@qtfoods.local');
@@ -67,11 +68,11 @@ test('Operations sources an approved requisition and controls its purchase order
   await rfqEditor.getByLabel('Commercial instructions').fill('Quote landed INR cost and attach batch certificate details.');
   await rfqEditor.getByRole('button', { name: 'Create draft RFQ' }).click();
   await expect(rfqEditor.getByRole('status')).toContainText('Draft RFQ created from the approved requisition');
-  await expect(rfqEditor.locator('.status').filter({ hasText: /^DRAFT$/ })).toBeVisible();
+  await expect(rfqEditor.locator('.status').filter({ hasText: /^Draft$/ })).toBeVisible();
 
   await rfqEditor.getByRole('button', { name: 'Issue RFQ' }).click();
   await expect(rfqEditor.getByRole('status')).toContainText('RFQ issued to all selected suppliers');
-  await expect(rfqEditor.locator('.status').filter({ hasText: /^ISSUED$/ })).toBeVisible();
+  await expect(rfqEditor.locator('.status').filter({ hasText: /^Issued$/ })).toBeVisible();
 
   await recordQuote(page, rfqEditor, WESTERN_SUPPLIER, 'WEST-E2E-001', '48', westernDeliveryDate);
   await recordQuote(page, rfqEditor, DECCAN_SUPPLIER, 'DECCAN-E2E-001', '49', deccanDeliveryDate);
@@ -80,7 +81,7 @@ test('Operations sources an approved requisition and controls its purchase order
   await comparison.locator('tbody tr').filter({ hasText: 'Western Ingredients Pvt Ltd' }).getByRole('button', { name: 'Select' }).click();
   await rfqEditor.getByRole('button', { name: 'Award selected quote' }).click();
   await expect(rfqEditor.getByRole('status')).toContainText('Supplier award recorded with comparison evidence');
-  await expect(rfqEditor.locator('.detail-status .status').filter({ hasText: /^AWARDED$/ })).toBeVisible();
+  await expect(rfqEditor.locator('.detail-status .status').filter({ hasText: /^Awarded$/ })).toBeVisible();
   await expect(rfqEditor).toContainText('Lowest compliant on-time offer');
 
   await navigation.locator('[data-screen-code="PUR-PO"]').click();
@@ -105,12 +106,12 @@ test('Operations sources an approved requisition and controls its purchase order
 
   await orderEditor.getByRole('button', { name: 'Issue purchase order' }).click();
   await expect(orderEditor.getByRole('status')).toContainText('Purchase order issued to the selected supplier');
-  await expect(orderEditor.locator('.status').filter({ hasText: /^ISSUED$/ })).toBeVisible();
+  await expect(orderEditor.locator('.status').filter({ hasText: /^Issued$/ })).toBeVisible();
 
   await orderEditor.getByLabel('Cancellation reason').fill('Supplier capacity changed before receipt scheduling.');
   await orderEditor.getByRole('button', { name: 'Cancel purchase order' }).click();
   await expect(orderEditor.getByRole('status')).toContainText('Purchase order cancelled with reason evidence');
-  await expect(orderEditor.locator('.status').filter({ hasText: /^CANCELLED$/ })).toBeVisible();
+  await expect(orderEditor.locator('.status').filter({ hasText: /^Cancelled$/ })).toBeVisible();
   await expect(orderEditor).toContainText('Supplier capacity changed before receipt scheduling.');
 });
 

@@ -42,7 +42,7 @@ test('named user changes password, enables TOTP, and signs in with both factors'
   await page.getByRole('button', { name: 'Sign out' }).click();
   await loginWithMfa(page, 'e2e.security.admin@qtfoods.local', 'SecurityChanged123', totp(secret!));
   await page.getByRole('button', { name: /Training Plant/ }).click();
-  await expect(page.getByRole('button', { name: 'Account security' })).toContainText('MFA ON');
+  await expect(page.getByRole('button', { name: 'Account security' })).toContainText('2-step on');
   await page.getByRole('button', { name: 'Sign out' }).click();
 
   await loginWithMfa(page, 'e2e.security.admin@qtfoods.local', 'SecurityChanged123', recoveryCode!);

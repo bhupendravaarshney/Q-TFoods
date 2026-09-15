@@ -4,7 +4,32 @@ Snapshot date: 2026-09-15
 
 ## Current position
 
-Repository implementation is complete for the agreed UAT scope: all 71 routed screens are live, role-scoped navigation and API access are fail closed, the sidebar uses user-friendly business names instead of visible screen codes, the backend and frontend test baselines pass, the production-oriented images and recovery tooling build, and the repository-owned CI security, dependency, load, and active-DAST gates pass.
+The agreed functional UAT scope remains implemented: all 71 routed screens are live, role-scoped navigation and API access are fail closed, and the sidebar uses user-friendly business names instead of visible screen codes. However, the current pushed release candidate is **RED and is not approved for UAT sign-off or production** because its required GitHub quality gate failed.
+
+### Release evidence status
+
+| Evidence | Commit and date | Status |
+| --- | --- | --- |
+| Documented local checkpoint | `ad8e12ecf0fe509be264c3efcf108c42b412e04d`, 2026-09-15 | Historical local evidence only. This is the checkpoint associated with the recorded backend, frontend, E2E, k6, ZAP, recovery, and image results below; it is not acceptance evidence for a later commit. |
+| Current pushed candidate | `3127f305583bf07f98c784c1203812affab0dd7b`, GitHub Actions run `34972492880`, completed 2026-09-15 13:07 UTC | **RED / not releasable.** `Live browser workflows` and `Authenticated load and active API security` failed before their tests/scans ran because a fresh runner could no longer pull `minio/mc` from Docker Hub. No current k6 or ZAP report was produced. |
+| Local remediation candidate | Uncommitted working tree based on `3127f305583bf07f98c784c1203812affab0dd7b`, 2026-09-15 | **Locally green for the repaired paths, but not release evidence yet.** The full browser gate passes 22/22; the authenticated k6 gate passes 602/602 checks over 301 iterations with zero failed requests/drops (global p95 85.09 ms, p99 94.94 ms); ZAP reports no Medium/High findings (four Low and three Informational retained); all 104 frontend tests and the production build pass; and the new PHP Semgrep gate scans 193 files with zero blocking findings or scan errors. A complete GitHub aggregate is still required after commit/push. |
+
+The failing runner log identified the shared root cause as `pull access denied for minio/mc`. This was masked locally by a previously cached Docker Hub image. The remediation uses the official Quay MinIO client release at the same pinned multi-platform digest, updates the artifact uploader from v5 to SHA-pinned v6/Node.js 24, prints Compose service state and logs on startup failure, aligns browser checks with user-friendly labels and nonvisual screen identifiers, and replaces inferred required fields with explicit per-command form schemas. A digest-pinned PHP-aware Semgrep job is now part of the required aggregate and retains its JSON report.
+
+### Senior QA audit remediation status
+
+| Audit finding | Current disposition |
+| --- | --- |
+| QA-001 / QA-002: E2E and dynamic environments fail to start | Root cause fixed and reproduced from a clean pull path; local browser 22/22 and k6/ZAP gates pass. Awaiting a new pushed GitHub run. |
+| QA-003: `main` is not protected | **Open external governance action.** Repository administration must require `Required quality gate`, restrict bypass/force-push authority, and assign failure ownership. |
+| QA-004: status documents contradicted CI | Corrected. Historical evidence, current pushed SHA, and local remediation evidence are now separately labelled. |
+| QA-005 / QA-006: no current DAST/load evidence | Local remediation artifacts now exist and pass policy; current release-SHA evidence still requires the post-push workflow artifacts. |
+| QA-007 / QA-008 / QA-009 | **Open release blockers:** independent penetration test, target backup/restore/RPO/RTO approval, production secrets/SMTP, and local-auth versus SSO/IdP commissioning. |
+| QA-010: deprecated artifact action runtime | Fixed in the workflow with SHA-pinned `actions/upload-artifact` v6. |
+| QA-011: no PHP-aware SAST | Fixed in the workflow with digest-pinned Semgrep, official PHP/security-audit policies, blocking-error enforcement, and retained JSON evidence. |
+| QA-012 / QA-013: bounded DAST and smoke-only load | Accepted only as CI regression baselines; expanded authenticated security scenarios and production-like capacity certification remain required before production approval. |
+| QA-014: defects not formally tracked | **Open process action.** Create/assign repository issues or equivalent controlled tickets for the remaining external blockers and future gate failures. |
+| QA-015: required fields inferred from template values | Fixed. Every governed command form now declares required paths, minimum line counts, alternatives, and conditional requirements explicitly; false-valued required booleans are supported. |
 
 What remains is primarily target-platform commissioning, organisational control, and independent assurance. This document is the concise handoff view; [`ERP_IMPLEMENTATION_GAPS.md`](ERP_IMPLEMENTATION_GAPS.md) remains the detailed evidence record.
 

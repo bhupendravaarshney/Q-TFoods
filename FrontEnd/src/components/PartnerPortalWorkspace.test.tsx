@@ -23,7 +23,7 @@ describe('Partner Portal workspace', () => {
     renderPage(partnerSession());
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Partner Portal' })).toBeInTheDocument();
-    expect(screen.getByText(/External tenant: North Market Distributor/i)).toBeInTheDocument();
+    expect(screen.getByText(/External organisation: North Market Distributor/i)).toBeInTheDocument();
     expect(screen.getByText(/acknowledgements record receipt only/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Access grants/i })).not.toBeInTheDocument();
 
