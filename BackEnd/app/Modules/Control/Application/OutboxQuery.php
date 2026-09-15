@@ -101,7 +101,7 @@ final class OutboxQuery
         if ($q !== '') {
             $needle = '%'.mb_strtolower($q).'%';
             $query->where(function (Builder $query) use ($needle): void {
-                foreach (['event_type', 'aggregate_type', 'aggregate_id', 'business_key', 'correlation_id', 'acknowledgement_id', 'last_error_code'] as $column) {
+                foreach (['event_type', 'aggregate_type', 'aggregate_id', 'business_key', 'request_id', 'correlation_id', 'trace_id', 'acknowledgement_id', 'last_error_code'] as $column) {
                     $query->orWhereRaw(
                         "LOWER(COALESCE(CAST(outbox.{$column} AS TEXT), '')) LIKE ?",
                         [$needle]
@@ -134,7 +134,10 @@ final class OutboxQuery
             'aggregate_type' => (string) $event->aggregate_type,
             'aggregate_id' => (string) $event->aggregate_id,
             'business_key' => (string) $event->business_key,
+            'request_id' => $event->request_id ? (string) $event->request_id : null,
             'correlation_id' => $event->correlation_id ? (string) $event->correlation_id : null,
+            'trace_id' => $event->trace_id ? (string) $event->trace_id : null,
+            'span_id' => $event->span_id ? (string) $event->span_id : null,
             'status' => (string) $event->status,
             'attempts' => (int) $event->attempts,
             'record_version' => (int) $event->record_version,

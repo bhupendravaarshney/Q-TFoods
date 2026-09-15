@@ -35,7 +35,7 @@ final class AuditQuery
 
         $events = $filtered
             ->select([
-                'audit.id', 'audit.request_id', 'audit.correlation_id', 'audit.command',
+                'audit.id', 'audit.request_id', 'audit.correlation_id', 'audit.trace_id', 'audit.span_id', 'audit.command',
                 'audit.entity_type', 'audit.entity_id', 'audit.entity_version', 'audit.actor_id',
                 'actor.name as actor_name', 'actor.email as actor_email', 'audit.company_id',
                 'audit.plant_id', 'audit.outcome', 'audit.reason_code', 'audit.event_at',
@@ -148,14 +148,14 @@ final class AuditQuery
             $query->where(function (Builder $query) use ($needle): void {
                 foreach ([
                     'audit.command', 'audit.entity_type', 'audit.entity_id', 'audit.request_id',
-                    'audit.correlation_id', 'audit.reason_code', 'actor.name', 'actor.email',
+                    'audit.correlation_id', 'audit.trace_id', 'audit.reason_code', 'actor.name', 'actor.email',
                 ] as $column) {
                     $query->orWhereRaw('LOWER(COALESCE(CAST('.$column." AS TEXT), '')) LIKE ?", [$needle]);
                 }
             });
         }
 
-        foreach (['command', 'entity_type', 'outcome', 'actor_id', 'entity_id', 'request_id', 'correlation_id'] as $field) {
+        foreach (['command', 'entity_type', 'outcome', 'actor_id', 'entity_id', 'request_id', 'correlation_id', 'trace_id'] as $field) {
             if (isset($filters[$field]) && $filters[$field] !== '') {
                 $query->where('audit.'.$field, $filters[$field]);
             }
@@ -174,6 +174,8 @@ final class AuditQuery
             'id' => (string) $event->id,
             'request_id' => $event->request_id ? (string) $event->request_id : null,
             'correlation_id' => $event->correlation_id ? (string) $event->correlation_id : null,
+            'trace_id' => $event->trace_id ? (string) $event->trace_id : null,
+            'span_id' => $event->span_id ? (string) $event->span_id : null,
             'command' => (string) $event->command,
             'entity_type' => (string) $event->entity_type,
             'entity_id' => (string) $event->entity_id,

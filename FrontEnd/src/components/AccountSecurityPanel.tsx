@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { isApiError } from '../api/client';
 import {
   beginMfaSetup,
@@ -29,6 +29,8 @@ export function AccountSecurityPanel({ session, onClose }: { session: ErpSession
   const [mfaCode, setMfaCode] = useState('');
   const [setup, setSetup] = useState<MfaSetup | null>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const panelRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const refreshDevices = useCallback(async () => {
     setLoadingDevices(true);
@@ -42,6 +44,50 @@ export function AccountSecurityPanel({ session, onClose }: { session: ErpSession
   }, []);
 
   useEffect(() => { void refreshDevices(); }, [refreshDevices]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter((element) => element.getClientRects().length > 0);
+      if (!focusable.length) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !panel.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !panel.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   async function submitPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -162,8 +208,8 @@ export function AccountSecurityPanel({ session, onClose }: { session: ErpSession
 
   return (
     <div className="security-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="security-panel" role="dialog" aria-modal="true" aria-labelledby="security-title">
-        <header><div><div className="eyebrow">ACCOUNT SECURITY</div><h2 id="security-title">Identity & devices</h2><p>{session.user.email}</p></div><button className="icon" type="button" aria-label="Close account security" onClick={onClose}>×</button></header>
+      <section ref={panelRef} id="account-security-dialog" className="security-panel" role="dialog" aria-modal="true" aria-labelledby="security-title" aria-describedby="security-account-email" tabIndex={-1}>
+        <header><div><div className="eyebrow">ACCOUNT SECURITY</div><h2 id="security-title">Identity & devices</h2><p id="security-account-email">{session.user.email}</p></div><button ref={closeButtonRef} className="icon" type="button" aria-label="Close account security" onClick={onClose}>×</button></header>
         <div className="security-body">
           {error && <div className="form-error" role="alert"><span>{error}</span></div>}
           {success && <div className="form-success" role="status"><span></span>{success}</div>}

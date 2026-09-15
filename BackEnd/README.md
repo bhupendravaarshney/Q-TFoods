@@ -14,6 +14,8 @@ Laravel 13 modular-monolith backend for the Q & T FOODS manufacturing ERP.
 - mandatory authorised-context selection before business API access
 - server-side screen and transaction-action permission middleware
 - transactional audit, reliable outbox, idempotency, and maker-checker services
+- generated/validated request and correlation UUIDs, W3C trace propagation, durable audit/outbox trace linkage, structured request/queue/outbox logs, dependency readiness, protected Prometheus metrics, and scheduled threshold alerts
+- an opt-in unprivileged recovery image with quiesced atomic PostgreSQL/MinIO snapshots, exact SHA-256 inventories, bounded retention, full-database/object restoration, Redis invalidation, and post-restore object/outbox/failed-job reconciliation
 - scoped audit search/detail APIs with actor, request/correlation, outcome, date, command, and entity filters plus safe-diff inspection and permissioned inline/download evidence access
 - PostgreSQL-safe outbox claiming, immutable delivery-attempt history, persisted acknowledgements, bounded exponential retries, stale-lock recovery, automatic/manual quarantine, optimistic operator replay, and an optional HMAC-signed HTTP transport
 - versioned global/plant approval policies with supported Unsold Return and Purchase Requisition rule creation, contiguous quantity/value authority bands, immutable request snapshots, SLA deadlines, one-time escalation routing, temporary non-chainable delegation, and rejection/resubmission lineage
@@ -42,6 +44,8 @@ Laravel 13 modular-monolith backend for the Q & T FOODS manufacturing ERP.
 - ledger-isolated finance simulations, maker-checker adjustments, mapped/validated legacy imports, line-reconciled opening balances, and immutable non-mutating support diagnostic snapshots
 - private finance bill archive with MIME/size/retention validation, SHA-256 duplicate detection, scoped metadata, and authenticated MinIO/S3 retrieval
 - effective-dated legal-entity consolidation groups, governed plant lanes and item/UOM mappings, dual-scope cross-company authority, independent source/destination acceptance, separate dispatch/receipt stock movements, in-transit evidence, and balanced maker-checker consolidation snapshots
+- immutable plant-scoped trial-balance, receivable-ageing, inventory-availability, and order-fulfilment report runs with explicit cutoff/source freshness, stored rows/totals, snapshot SHA-256, and deterministic authenticated CSV/JSON exports
+- role-filtered published guidance plus requester-owned/support-manager-visible support cases with optimistic start, comment, resolve, reopen, and close transitions and an ordered immutable event history
 - schema-wide PostgreSQL hardening for all current master and transaction tables with scoped/composite foreign keys, lifecycle/type/quantity/amount checks, uniqueness and partial indexes, ownership/party-consistency triggers, and an explicit polymorphic/transport-identifier allowlist
 - persisted, role/company/plant-scoped approval/task/exception queue with live counters, ageing, deadlines, claim, manager assignment, completion, audit/outbox records, and exact workflow drill-through
 - controlled `RET-UNSOLD` request-to-finance commands, scoped list/detail reads, status history, and cascading customer/shipment/invoice/SKU/lot/quarantine-position lookups
@@ -57,7 +61,7 @@ Laravel 13 modular-monolith backend for the Q & T FOODS manufacturing ERP.
 - scoped case detail exposes evidence integrity, retention, uploader, and upload-audit metadata without storage paths; successful no-store/nosniff downloads are also audited
 - live evidence uses a private MinIO/S3 bucket provisioned by Compose; startup migrates any legacy private-volume objects and verifies their stored SHA-256 hashes before the application starts
 
-The selected company and plant are authoritative. Business requests cannot substitute a different scope. Master data, stock, procure-to-pay, manufacturing, work/approval, order-to-cash, dispatch, claims, receivables, core/supplement finance, multi-plant transfer/consolidation, return treatment, and private evidence/archive commands are all constrained to the same active context and reference chain. Existing-record commands require the current optimistic version where applicable, and safe idempotent replays return the original command result instead of duplicating aggregate replacements, transitions, reservations, stock/ledger movements, approvals, settlements, exports, or attachments.
+The selected company and plant are authoritative. Business requests cannot substitute a different scope. Master data, stock, procure-to-pay, manufacturing, work/approval, order-to-cash, dispatch, claims, receivables, core/supplement finance, multi-plant transfer/consolidation, reporting, support cases, return treatment, and private evidence/archive commands are all constrained to the same active context and reference chain. Existing-record commands require the current optimistic version where applicable, and safe idempotent replays return the original command result instead of duplicating aggregate replacements, transitions, reservations, stock/ledger movements, approvals, settlements, exports, or attachments.
 
 ## Local ERP flow
 
@@ -91,12 +95,14 @@ The container seeds these accounts at startup. They are development-only credent
 docker compose up -d --build
 ```
 
-Compose health-checks PostgreSQL, Redis, and MinIO, creates a non-public object bucket used by the scoped evidence and finance-archive prefixes, runs migrations/seeding and the integrity-checked legacy-evidence migration once, then starts the API, Redis queue worker, and scheduler. The scheduler enqueues an outbox-delivery batch every minute; the worker consumes the `outbox` and `default` queues. The API serves at `http://localhost:8000`, health is available at `http://localhost:8000/api/health`, and the local MinIO console is available at `http://localhost:9001`.
+Compose health-checks PostgreSQL, Redis, and MinIO, creates a non-public object bucket used by the scoped evidence and finance-archive prefixes, runs migrations/seeding and the integrity-checked legacy-evidence migration once, then starts the API, Redis queue worker, and scheduler. The scheduler enqueues an outbox-delivery batch every minute and evaluates operational alerts every five minutes; the worker consumes the `outbox` and `default` queues. The API serves at `http://localhost:8000`, liveness is available at `http://localhost:8000/api/health`, readiness at `http://localhost:8000/api/ready`, local metrics at `http://localhost:8000/api/metrics`, and the local MinIO console at `http://localhost:9001`.
 
 For a synchronous operational probe or recovery batch, run:
 
 ```bash
 docker compose exec app php artisan qt:outbox:process --limit=50
+docker compose exec app php artisan qt:observability:check
+docker compose exec app php artisan qt:recovery:verify --object-limit=0
 ```
 
 Run the isolated test suite with:
@@ -105,24 +111,33 @@ Run the isolated test suite with:
 docker compose run --rm --no-deps app composer test
 ```
 
-The fast profile uses SQLite and skips the four PostgreSQL catalog/write-rejection checks in `MasterTransactionRelationalIntegrityTest`. Run those against a prepared E2E PostgreSQL database with `vendor/bin/phpunit -c phpunit.pgsql.xml`; the live Playwright setup below builds and seeds that disposable database automatically.
+The fast profile uses SQLite and skips the four PostgreSQL catalog/write-rejection checks in `MasterTransactionRelationalIntegrityTest`; the process-level stock-lock test is excluded from that profile. Run all five database-specific tests against a prepared E2E PostgreSQL database with `vendor/bin/phpunit -c phpunit.pgsql.xml`. The dedicated profile also starts two service processes, observes the contender blocked by the holder in PostgreSQL, and proves the second command re-reads committed stock rather than over-consuming it. The live Playwright setup below builds and seeds a disposable PostgreSQL database automatically.
 
-The verified P2 baseline is 7 feature tests / 206 assertions on both SQLite and PostgreSQL; the focused multi-plant scale, partner-portal, and optimisation suites are respectively 4 tests / 84 assertions, 4 tests / 73 assertions, and 4 tests / 139 assertions on both databases. The complete fast suite is 154 tests / 2,409 assertions, and the PostgreSQL relational-integrity suite is 4 tests / 15 assertions.
+The verified P2 baseline is 7 feature tests / 206 assertions on both SQLite and PostgreSQL; the focused multi-plant scale, partner-portal, optimisation, and reporting/help suites are respectively 4 tests / 84 assertions, 4 tests / 73 assertions, 4 tests / 139 assertions, and 4 tests / 84 assertions on both databases. The route-authorisation, production-configuration, observability, and recovery suites add 5 tests / 7,373 assertions, 8 tests / 59 assertions, 6 tests / 61 assertions, and 3 tests / 22 assertions respectively. The route matrix classifies all 480 v1 routes and resolves every business screen/action gate across all seeded roles and contexts. The complete fast suite is 180 tests / 10,013 assertions, and the PostgreSQL integrity/concurrency profile is 5 tests / 31 assertions. The disposable recovery drill additionally passes against live PostgreSQL, MinIO, and Redis.
 
 The frontend also owns live Chromium integration tests that run this backend against disposable PostgreSQL, Redis, and MinIO volumes:
 
 ```bash
 cd ../FrontEnd
 npm run test:e2e
+npm run test:e2e:a11y
 ```
 
-Its dedicated `docker-compose.e2e.yml` project is reset and removed automatically, so it does not modify the normal development database or MinIO volume.
+Its dedicated `docker-compose.e2e.yml` project is reset and removed automatically, so it does not modify the normal development database or MinIO volume. The complete suite currently contains 22 workflows; the focused accessibility command runs four of them, including automated WCAG A/AA coverage over all registered business screens.
 
-The Compose key, service passwords, log mailer, and identity preview links are local-development values. Configure SMTP, set `QT_IDENTITY_PREVIEW_LINKS=false`, rotate secrets, and enable TLS before using this stack in any shared environment.
+The same disposable Compose definition exposes opt-in, digest-pinned k6 and ZAP services under the `quality` profile. Run the authenticated load and active API-security gates through `npm run test:quality:dynamic` from `FrontEnd`; the orchestrator uses a separate `qtfoods-erp-quality` project and removes its volumes on completion. Locked dependency, CodeQL, Trivy repository/release-image, browser, and dynamic gate policy is documented in [`../quality/README.md`](../quality/README.md).
+
+The Compose key, service passwords, log mailer, and identity preview links are local-development values. Do not promote this Compose file or its seeded data into a shared environment.
+
+## Production deployment baseline
+
+Use `docker-compose.production.yml` and `.env.production.example` for production-oriented builds. That stack builds a no-dev PHP-FPM image and a separate recovery image running as unprivileged users, exposes only the source-built Caddy TLS gateway, keeps PostgreSQL/Redis/MinIO private, provisions a separate object-storage application identity, runs migrations without demo seeding, emits JSON stderr telemetry, protects metrics with a dedicated token, schedules operational alerts, and refuses unsafe production/recovery policy at application boot. The release build also compiles the MinIO client from its pinned source revision with the checked security-dependency upgrades; Trivy scans both resulting Go binaries.
+
+The deployment preflight, secret inputs, frontend relationship, startup order, and observability contract are documented in [`docs/PRODUCTION_DEPLOYMENT.md`](docs/PRODUCTION_DEPLOYMENT.md); backup, restore, queue/outbox reconciliation, and rollback are in [`docs/RECOVERY_RUNBOOK.md`](docs/RECOVERY_RUNBOOK.md). Actual secret provisioning, external collector/paging integration, scheduled encrypted off-host backup custody, target-environment drills/recovery approval, protected-branch administration, and independent penetration/capacity approval remain deployment or organisational responsibilities.
 
 ## Delivery status
 
-The complete local identity/control foundation, master data, inventory, procure-to-pay, manufacturing/quality/packing/trace/cost, unsold-return, order-to-cash/dispatch/claims/receivables, core/supplement finance, and all three P3 slices are functional. The portal includes party-bound external identity grants, exact tenant/entitlement enforcement, live commercial records and claims, and private checksum-backed document exchange with receipt-only acknowledgement. Optimisation captures immutable released-demand/stock/shortage/cost input versions, generates deterministic recommendations with explicit limitations, requires independent review, and records versioned outcomes without executing transactions. Only two pages remain deliberate prototypes: `ADM-HELP` and `BI-REP`.
+The complete local identity/control foundation and all 71 routed screens are functional. The portal includes party-bound exact-tenant access and private checksum-backed document exchange; optimisation captures immutable inputs and independently reviewed non-posting recommendations; reporting stores cutoff-bound checksummed snapshots and deterministic exports; and help/support combines role-filtered guidance with a scoped, versioned requester/manager case lifecycle. No routed page remains a deliberate prototype. Cross-cutting production hardening is tracked separately.
 
 API references:
 

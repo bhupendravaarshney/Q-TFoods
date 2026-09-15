@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { screenRegistry } from '../data/screenRegistry';
 import type { ErpSession } from '../types/session';
 import { ErpSessionContext } from './ErpSessionContext';
 import { pageMap } from './pageMap';
 import { AccountSecurityPanel } from '../components/AccountSecurityPanel';
+import { useKeyboardScrollableRegions } from './useKeyboardScrollableRegions';
 
 const areaOrder = [
   'Foundation / Admin',
@@ -33,6 +34,53 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
   const [search, setSearch] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
+  const [compactNavigation, setCompactNavigation] = useState(() => window.matchMedia('(max-width: 820px)').matches);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const sidebarSearchRef = useRef<HTMLInputElement>(null);
+  const securityButtonRef = useRef<HTMLButtonElement>(null);
+  const mainContentRef = useRef<HTMLElement>(null);
+
+  useKeyboardScrollableRegions(mainContentRef);
+
+  const closeSidebar = useCallback(() => {
+    setSidebarOpen(false);
+    window.requestAnimationFrame(() => menuButtonRef.current?.focus());
+  }, []);
+
+  const closeSecurity = useCallback(() => {
+    setSecurityOpen(false);
+    window.requestAnimationFrame(() => securityButtonRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 820px)');
+    const update = (matches: boolean) => {
+      setCompactNavigation(matches);
+      if (!matches) setSidebarOpen(false);
+    };
+    const handleChange = (event: MediaQueryListEvent) => update(event.matches);
+
+    update(media.matches);
+    media.addEventListener('change', handleChange);
+    return () => media.removeEventListener('change', handleChange);
+  }, []);
+
+  useEffect(() => {
+    if (!compactNavigation || !sidebarOpen) return;
+
+    const frame = window.requestAnimationFrame(() => sidebarSearchRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      closeSidebar();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [closeSidebar, compactNavigation, sidebarOpen]);
 
   useEffect(() => {
     const syncHash = () => {
@@ -75,13 +123,28 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+      <a
+        className="skip-link"
+        href="#erp-main-content"
+        onClick={(event) => {
+          event.preventDefault();
+          mainContentRef.current?.focus();
+        }}
+      >
+        Skip to main content
+      </a>
+      <aside
+        id="erp-sidebar"
+        className={`sidebar ${sidebarOpen ? 'open' : ''}`}
+        aria-hidden={compactNavigation && !sidebarOpen ? true : undefined}
+        inert={compactNavigation && !sidebarOpen ? true : undefined}
+      >
         <div className="side-brand">
           <span className="brand-mark">Q&T</span>
           <div><b>Q & T FOODS LTD</b><small>ERP + CRM</small></div>
         </div>
         <div className="side-search">
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search my modules" aria-label="Search authorised modules" />
+          <input ref={sidebarSearchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search my modules" aria-label="Search authorised modules" />
         </div>
         <nav aria-label="Authorised ERP modules">
           {areaOrder.map((area) => {
@@ -91,7 +154,7 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
               <section key={area} className="nav-group">
                 <h4>{area}</h4>
                 {items.map((item) => (
-                  <button key={item.code} className={item.code === current?.code ? 'active' : ''} onClick={() => go(item.code)}>
+                  <button key={item.code} className={item.code === current?.code ? 'active' : ''} aria-current={item.code === current?.code ? 'page' : undefined} onClick={() => go(item.code)}>
                     <small>{item.code}</small><span>{item.title}</span>
                   </button>
                 ))}
@@ -107,23 +170,31 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
         </div>
       </aside>
 
-      {sidebarOpen && <button className="sidebar-scrim" type="button" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
+      {sidebarOpen && <button className="sidebar-scrim" type="button" aria-label="Close navigation" onClick={() => closeSidebar()} />}
 
       <section className="main">
         <header className="topbar">
-          <button className="icon mobile-menu" aria-label="Toggle navigation" onClick={() => setSidebarOpen((open) => !open)}>☰</button>
-          <button className="context-button" onClick={onChooseContext}>
+          <button
+            ref={menuButtonRef}
+            className="icon mobile-menu"
+            type="button"
+            aria-label="Toggle navigation"
+            aria-controls="erp-sidebar"
+            aria-expanded={sidebarOpen}
+            onClick={() => sidebarOpen ? closeSidebar() : setSidebarOpen(true)}
+          >☰</button>
+          <button className="context-button" type="button" onClick={onChooseContext}>
             <i></i>
             <span><b>{context?.company_name}</b><small>{context?.plant_name ?? 'All plants'} · {primaryRole}</small></span>
             ⌄
           </button>
           <div className="spacer"></div>
           <span className="prototype-pill role-pill">ROLE-SCOPED SESSION</span>
-          <button className="security-button" type="button" aria-label="Account security" onClick={() => setSecurityOpen(true)}><span>Security</span><b>{session.security?.mfa_enabled ? 'MFA ON' : 'MFA OFF'}</b></button>
+          <button ref={securityButtonRef} className="security-button" type="button" aria-label="Account security" aria-haspopup="dialog" aria-controls="account-security-dialog" aria-expanded={securityOpen} onClick={() => setSecurityOpen(true)}><span>Security</span><b>{session.security?.mfa_enabled ? 'MFA ON' : 'MFA OFF'}</b></button>
           {allowedScreens.has('ADM-HELP') && <button className="icon" aria-label="Open help" onClick={() => go('ADM-HELP')}>?</button>}
         </header>
 
-        <main className="content">
+        <main ref={mainContentRef} id="erp-main-content" className="content" tabIndex={-1}>
           <ErpSessionContext.Provider value={session}>
             {CurrentPage ? <CurrentPage /> : (
               <section className="panel empty-state">No ERP screens are assigned to this role in the selected context.</section>
@@ -131,7 +202,7 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
           </ErpSessionContext.Provider>
         </main>
       </section>
-      {securityOpen && <AccountSecurityPanel session={session} onClose={() => setSecurityOpen(false)} />}
+      {securityOpen && <AccountSecurityPanel session={session} onClose={closeSecurity} />}
     </div>
   );
 }

@@ -6,6 +6,7 @@ x-e2e-environment: &e2e-environment
   APP_URL: http://localhost:18000
   LOG_CHANNEL: stderr
   LOG_LEVEL: debug
+  LOG_STDERR_FORMATTER: Monolog\Formatter\JsonFormatter
   DB_CONNECTION: pgsql
   DB_HOST: postgres
   DB_PORT: 5432
@@ -32,12 +33,18 @@ x-e2e-environment: &e2e-environment
   AWS_BUCKET: qtfoods-evidence-e2e
   AWS_ENDPOINT: http://minio:9000
   AWS_USE_PATH_STYLE_ENDPOINT: "true"
+  AWS_CONNECT_TIMEOUT_SECONDS: 2
+  AWS_REQUEST_TIMEOUT_SECONDS: 5
   QT_OUTBOX_TRANSPORT: log
   QT_OUTBOX_BATCH_SIZE: 50
   QT_OUTBOX_MAX_ATTEMPTS: 4
   QT_OUTBOX_BASE_RETRY_SECONDS: 1
   QT_OUTBOX_MAX_RETRY_SECONDS: 10
   QT_OUTBOX_LOCK_TIMEOUT_SECONDS: 30
+  QT_READINESS_DATABASE: "true"
+  QT_READINESS_REDIS: "true"
+  QT_READINESS_OBJECT_STORAGE: "true"
+  QT_ALERT_TRANSPORT: log
 
 x-e2e-dependencies: &e2e-dependencies
   postgres:
@@ -64,7 +71,7 @@ services:
     command: php artisan serve --host=0.0.0.0 --port=8000
     environment: *e2e-environment
     ports:
-      - "18000:8000"
+      - "127.0.0.1:18000:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -94,7 +101,7 @@ services:
         condition: service_completed_successfully
 
   postgres:
-    image: postgres:18
+    image: postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
     environment:
       POSTGRES_DB: qtfoods_e2e
       POSTGRES_USER: qtfoods_e2e
@@ -108,7 +115,7 @@ services:
       retries: 30
 
   redis:
-    image: redis:8
+    image: redis:8@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 2s
@@ -116,7 +123,7 @@ services:
       retries: 30
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:latest@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: qtfoods-e2e
@@ -130,7 +137,7 @@ services:
       retries: 30
 
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:latest@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     entrypoint:
       - /bin/sh
       - -c
@@ -141,6 +148,67 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+
+  k6:
+    profiles: [quality]
+    image: grafana/k6:1.8.1@sha256:23f2279054c3e01535455c4d92914a625df12aeb631ea0e3ea7a43f96bcbc843
+    environment:
+      BASE_URL: http://app:8000
+    volumes:
+      - ../quality/performance:/quality:ro
+      - ../quality-results:/results
+    command:
+      - run
+      - --summary-export=/results/k6-summary.json
+      - /quality/erp-read-smoke.js
+    depends_on:
+      app:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  zap:
+    profiles: [quality]
+    image: zaproxy/zap-stable:2.17.0@sha256:781a2bdaea47324e7bab583e2263f21d257b0aee61ed51521a5be45f5f5081ef
+    volumes:
+      - ../:/zap/wrk/repository:ro
+      - ../quality-results:/zap/wrk/results
+    command:
+      - zap-api-scan.py
+      - -t
+      - repository/quality/security/openapi-dast.yaml
+      - -f
+      - openapi
+      - -O
+      - http://app:8000
+      - -I
+      - -T
+      - "10"
+      - -D
+      - "2"
+      - -J
+      - results/zap-report.json
+      - -r
+      - results/zap-report.html
+      - -w
+      - results/zap-report.md
+      - -l
+      - WARN
+      - -s
+      - -z
+      - -silent -configfile /zap/wrk/results/.zap-auth.prop
+    depends_on:
+      app:
+        condition: service_healthy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   e2e_pg:

@@ -19,13 +19,18 @@ final class HealthEndpointTest extends TestCase
 
     public function test_protected_endpoints_require_authentication(): void
     {
-        $this->getJson('/api/v1/contexts')
-            ->assertUnauthorized()
-            ->assertExactJson([
+        $response = $this->getJson('/api/v1/contexts')->assertUnauthorized()
+            ->assertJson([
                 'error' => [
                     'code' => 'UNAUTHENTICATED',
                     'message' => 'Unauthenticated.',
                 ],
             ]);
+        self::assertTrue(\Illuminate\Support\Str::isUuid((string) $response->json('error.request_id')));
+        $response->assertHeader('X-Request-ID', $response->json('error.request_id'));
+
+        $this->get('/api/v1/contexts')
+            ->assertUnauthorized()
+            ->assertJsonPath('error.code', 'UNAUTHENTICATED');
     }
 }

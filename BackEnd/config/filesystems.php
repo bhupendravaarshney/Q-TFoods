@@ -22,6 +22,10 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', true),
+            'http' => [
+                'connect_timeout' => (float) env('AWS_CONNECT_TIMEOUT_SECONDS', 2),
+                'timeout' => (float) env('AWS_REQUEST_TIMEOUT_SECONDS', 5),
+            ],
             'visibility' => 'private',
             'throw' => true,
             'report' => true,
@@ -45,6 +49,10 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', true),
+            'http' => [
+                'connect_timeout' => (float) env('AWS_CONNECT_TIMEOUT_SECONDS', 2),
+                'timeout' => (float) env('AWS_REQUEST_TIMEOUT_SECONDS', 5),
+            ],
             'visibility' => 'private',
             'throw' => true,
             'report' => true,

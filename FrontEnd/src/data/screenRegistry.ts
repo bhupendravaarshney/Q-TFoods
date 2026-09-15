@@ -76,14 +76,14 @@ export const screenRegistry: ScreenDefinition[] = [
     "title": "Help & Support",
     "area": "Foundation / Admin",
     "batch": "B04",
-    "description": "Help & Support workflow with server-authoritative scope, state, version, approval and audit."
+    "description": "Role-relevant guidance and scoped, versioned requester/support-manager case history."
   },
   {
     "code": "BI-REP",
-    "title": "Reports",
+    "title": "Controlled Reports",
     "area": "Foundation / Admin",
     "batch": "B04",
-    "description": "Controlled read models with filters, cutoff, freshness and export metadata."
+    "description": "Immutable scoped read models with explicit cutoff, freshness, checksums, totals and deterministic exports."
   },
   {
     "code": "MD-PARTY",

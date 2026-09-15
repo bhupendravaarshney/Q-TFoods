@@ -12,8 +12,8 @@
 - `ADM-RULE` → `src/pages/ADM_RULE.tsx` — Approval Rules
 - `ADM-AUD` → `src/pages/ADM_AUD.tsx` — Audit & Evidence
 - `ADM-INT` → `src/pages/ADM_INT.tsx` — Integrations
-- `ADM-HELP` → `src/pages/ADM_HELP.tsx` — Help & Support (prototype)
-- `BI-REP` → `src/pages/BI_REP.tsx` — Reports (prototype)
+- `ADM-HELP` → `src/pages/ADM_HELP.tsx` — Help & Support (live role-filtered knowledge and versioned case workspace)
+- `BI-REP` → `src/pages/BI_REP.tsx` — Controlled Reports (live immutable snapshot/export workspace)
 - `MD-PARTY` → `src/pages/MD_PARTY.tsx` — Party Master (live list/detail/aggregate/lifecycle workspace)
 - `MD-BRAND` → `src/pages/MD_BRAND.tsx` — Brands & Agreements (live aggregate/lifecycle workspace)
 - `MD-ITEM` → `src/pages/MD_ITEM.tsx` — Items & UOM (live aggregate/lifecycle workspace)
@@ -101,7 +101,9 @@
 - `src/components/ScalePlantWorkspace.test.tsx` - live multi-register rendering, mapped transfer creation, and versioned source/destination action coverage
 - `src/components/PartnerPortalWorkspace.test.tsx` - external claim submission plus internal publication/external receipt-acknowledgement coverage
 - `src/components/OptimisationWorkspace.test.tsx` - input capture, limitation visibility, versioned submission, and outcome replacement coverage
+- `src/components/ReportingHelpWorkspaces.test.tsx` - report generation/export plus role-filtered article and support-case lifecycle coverage
 - `src/test/unsoldReturnFixtures.ts` - typed component fixtures
+- `e2e/accessibility-edge-cases.spec.ts` - route-wide WCAG A/AA scans plus keyboard, responsive focus, fail-closed deep-link, and context-cancellation coverage
 - `e2e/foundation-administration.spec.ts` - live plant, location, role, permission, invitation acceptance, and restricted-login Chromium workflow
 - `e2e/approval-governance.spec.ts` - live approval-policy versioning, delegation, escalation, and delegated-session Chromium workflow
 - `e2e/identity-security.spec.ts` - live password change, TOTP enrolment/challenge, recovery-code, and device visibility workflow
@@ -119,18 +121,17 @@
 - `e2e/multi-plant-scale.spec.ts` - live Operations-to-Administrator source approval/dispatch and destination-context receipt Chromium workflow
 - `e2e/partner-portal.spec.ts` - live internal publication/private download/external receipt acknowledgement and exact-party shipment-isolation Chromium workflow
 - `e2e/optimisation-planning.spec.ts` - live Operations-to-Finance-to-Operations input, recommendation, review, outcome, and completion Chromium workflow
+- `e2e/reporting-help.spec.ts` - live report snapshot/export plus requester-to-support-manager-to-requester Chromium workflow
 - `vitest.config.ts` and `playwright.config.ts` - component and browser runners
 - `../BackEnd/docker-compose.e2e.yml` - disposable PostgreSQL/Redis/MinIO/backend/worker/scheduler runtime
 
 ## Shared code
 
-- `src/components/AccountSecurityPanel.tsx` - password, TOTP/recovery-code, and device-session controls
-- `src/app/AppShell.tsx` — application shell and navigation
+- `src/components/AccountSecurityPanel.tsx` - password, TOTP/recovery-code, and device-session controls with modal focus management
+- `src/app/AppShell.tsx` — accessible application shell, responsive navigation, and route rendering
+- `src/app/useKeyboardScrollableRegions.ts` — keyboard reachability for current and asynchronously rendered overflow tables
 - `src/app/pageMap.ts` — screen-code → React component map
-- `src/components/ModulePage.tsx` — shared operational module page
-- `src/components/ScreenContract.tsx` — technical control reminder
-- `src/data/screenRegistry.ts` — full screen registry
-- `src/data/demoRows.ts` — demo records
+- `src/data/screenRegistry.ts` — full live-screen registry
 - `src/api/client.ts` — production API-client pattern
 - `src/api/identity.ts` — typed invitation, reset, verification, MFA, password, and device-session APIs
 - `src/api/foundationAdmin.ts` — typed organisation, location, user, role, permission, and assignment reads/mutations
@@ -148,6 +149,8 @@
 - `src/api/manufacturingExecution.ts` — typed production, stage, output/rework, lab, safety, artwork, packing, finished-lot, trace/recall, and batch-cost reads/mutations
 - `src/api/p2Operations.ts` — shared scoped P2/P3 list/detail, optimistic/idempotent command, multipart upload, and private download client
 - `src/api/optimisation.ts` — typed plan/input/recommendation/review/outcome reads and versioned/idempotent lifecycle mutations
+- `src/api/reporting.ts` — typed report catalog/run/detail/export reads and idempotent snapshot/export mutations
+- `src/api/helpSupport.ts` — typed knowledge and scoped, optimistic support-case reads/mutations
 - `src/components/ProductMasterWorkspace.tsx` — shared live product/manufacturing/quality master list, detail, nested editor, and lifecycle workspace
 - `src/components/InventoryStockWorkspace.tsx` — live stock-position, owner, lot, reservation, and immutable movement-history workspace
 - `src/components/InventoryOperationsWorkspace.tsx` — shared live draft, post, cancel, position-control, and movement-evidence workspace for `INV-ISS`, `INV-TRF`, `INV-COUNT`, and `INV-EXP`
@@ -169,4 +172,6 @@
 - `src/components/ScalePlantWorkspace.tsx` — live multi-register group/route/transfer/consolidation configuration over the governed command shell
 - `src/components/PartnerPortalWorkspace.tsx` — live internal access/document administration and entitlement-filtered external customer workspace
 - `src/components/OptimisationWorkspace.tsx` — live immutable-input, deterministic-recommendation, limitation, review, and outcome workspace
+- `src/components/ReportingWorkspace.tsx` — live immutable cutoff/freshness/checksum report and deterministic export workspace
+- `src/components/HelpSupportWorkspace.tsx` — live role-filtered knowledge and versioned requester/support-manager case workspace
 - `src/styles/app.css` — complete responsive styles

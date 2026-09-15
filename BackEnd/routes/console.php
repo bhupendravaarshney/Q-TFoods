@@ -1,13 +1,32 @@
 <?php
 
 use App\Jobs\ProcessOutboxBatch;
+use App\Shared\Deployment\ProductionEnvironmentGuard;
+use App\Shared\Observability\OperationalMonitor;
 use App\Shared\Outbox\OutboxProcessor;
+use App\Shared\Recovery\RecoveryVerifier;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Storage;
 
 Artisan::command('qt:status', function () { $this->info('Q & T FOODS ERP backend ready.'); });
+
+Artisan::command('qt:deployment:verify', function () {
+    $violations = app(ProductionEnvironmentGuard::class)->violations('production');
+    if ($violations !== []) {
+        $this->error('Production configuration is not safe:');
+        foreach ($violations as $violation) {
+            $this->line(' - '.$violation);
+        }
+
+        return 1;
+    }
+
+    $this->info('Production configuration passed all fail-closed checks.');
+    return 0;
+})->purpose('Fail unless the current configuration satisfies the production security baseline.');
 
 Artisan::command('qt:outbox:process {--limit=}', function () {
     $limit = $this->option('limit');
@@ -16,6 +35,62 @@ Artisan::command('qt:outbox:process {--limit=}', function () {
     );
     $this->line(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 })->purpose('Synchronously deliver due transactional-outbox events.');
+
+Artisan::command('qt:observability:check', function () {
+    $result = app(OperationalMonitor::class)->check();
+    $this->line(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+    return match ($result['status']) {
+        'critical' => 2,
+        'warning' => 1,
+        default => 0,
+    };
+})->purpose('Evaluate dependency, queue, outbox, and audit thresholds and dispatch operational alerts.');
+
+Artisan::command('qt:recovery:verify {--object-limit=} {--release-stale-outbox} {--confirmation=}', function () {
+    $verifier = app(RecoveryVerifier::class);
+    $configuredLimit = (int) config('recovery.object_verification_limit', 100000);
+    $requestedLimit = $this->option('object-limit');
+    if ($requestedLimit !== null && $requestedLimit !== ''
+        && (! ctype_digit((string) $requestedLimit) || (int) $requestedLimit > 1_000_000)) {
+        $this->error('The object limit must be an integer between 0 and 1000000; zero verifies every object.');
+
+        return 2;
+    }
+    $released = 0;
+    if ((bool) $this->option('release-stale-outbox')) {
+        if (! hash_equals('RELEASE_STALE_OUTBOX', (string) $this->option('confirmation'))) {
+            $this->error('Releasing stale outbox locks requires --confirmation=RELEASE_STALE_OUTBOX.');
+
+            return 2;
+        }
+        $released = $verifier->releaseStaleOutbox();
+        Log::warning('recovery_stale_outbox_released', [
+            'event' => 'recovery_stale_outbox_released',
+            'released_count' => $released,
+        ]);
+    }
+    $result = $verifier->verify(
+        $requestedLimit === null || $requestedLimit === '' ? $configuredLimit : (int) $requestedLimit,
+    );
+    $result['released_stale_outbox'] = $released;
+    $this->line(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    Log::log($result['status'] === 'critical' ? 'critical' : ($result['status'] === 'warning' ? 'warning' : 'info'),
+        'recovery_verification_completed', [
+            'event' => 'recovery_verification_completed',
+            'status' => $result['status'],
+            'object_total' => $result['object_storage']['total'],
+            'object_verified' => $result['object_storage']['verified'],
+            'issue_codes' => collect($result['issues'])->pluck('code')->all(),
+            'released_stale_outbox' => $released,
+        ]);
+
+    return match ($result['status']) {
+        'critical' => 2,
+        'warning' => 1,
+        default => 0,
+    };
+})->purpose('Verify restored database/object integrity and optionally release stale outbox locks.');
 
 Artisan::command('qt:evidence:migrate-object-storage {--source=evidence_legacy}', function () {
     $source = (string) $this->option('source');
@@ -70,3 +145,8 @@ Schedule::job(new ProcessOutboxBatch())
     ->name('qt-outbox-delivery')
     ->everyMinute()
     ->withoutOverlapping(5);
+
+Schedule::command('qt:observability:check')
+    ->name('qt-observability-check')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10);

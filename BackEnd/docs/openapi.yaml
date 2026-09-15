@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Q & T FOODS LTD ERP + CRM API
-  version: 3.0.0
+  version: 3.1.0
   description: Session-authenticated, role- and context-scoped ERP API.
 servers:
   - url: /api/v1
@@ -1304,7 +1304,7 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
         - in: query
           name: q
-          description: Search commands, entity/request/correlation identifiers, reason codes, and actor identity.
+          description: Search commands, entity/request/correlation/trace identifiers, reason codes, and actor identity.
           schema: { type: string, maxLength: 100 }
         - in: query
           name: command
@@ -1327,6 +1327,9 @@ paths:
         - in: query
           name: correlation_id
           schema: { type: string, format: uuid }
+        - in: query
+          name: trace_id
+          schema: { type: string, pattern: '^[0-9a-f]{32}$' }
         - in: query
           name: from
           schema: { type: string, format: date }
@@ -6664,6 +6667,268 @@ paths:
       requestBody: *p2JsonCommandBody
       responses: *p2CommandResponses
 
+  /reports:
+    get:
+      operationId: listReportRuns
+      summary: Browse the controlled report catalog and immutable scoped run history
+      description: Returns only generated runs in the selected company and plant, with cutoff, source-freshness, row-count, total, and checksum metadata.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: report_code
+          schema: { type: string, enum: [TRIAL_BALANCE, RECEIVABLE_AGING, INVENTORY_AVAILABILITY, ORDER_FULFILMENT] }
+      responses:
+        "200":
+          description: Reporting catalog and immutable run workspace
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportingWorkspace" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /reports/runs:
+    post:
+      operationId: generateReportRun
+      summary: Generate an immutable cutoff-bound report snapshot
+      security: [{ sessionCookie: [] }]
+      parameters: *p2CreateHeaders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportRunCommand" }
+      responses: *p2CreateResponses
+
+  /reports/runs/{runId}:
+    parameters:
+      - { in: path, name: runId, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getReportRun
+      summary: Read stored columns, rows, totals, checksum, and export evidence for one report run
+      security: [{ sessionCookie: [] }]
+      responses:
+        "200":
+          description: Immutable report detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/ReportRun" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /reports/runs/{runId}/exports:
+    parameters:
+      - { in: path, name: runId, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: createReportExport
+      summary: Materialise a deterministic CSV or JSON export from stored report rows
+      security: [{ sessionCookie: [] }]
+      parameters: *p2CreateHeaders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [format]
+              properties:
+                format: { type: string, enum: [CSV, JSON] }
+      responses: *p2CreateResponses
+
+  /reports/exports/{exportId}/download:
+    parameters:
+      - { in: path, name: exportId, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: downloadReportExport
+      summary: Download authenticated report-export bytes with SHA-256 response metadata
+      security: [{ sessionCookie: [] }]
+      responses:
+        "200":
+          description: Stored deterministic export
+          headers:
+            X-Content-SHA256:
+              schema: { type: string, pattern: '^[0-9a-f]{64}$' }
+          content:
+            text/csv:
+              schema: { type: string }
+            application/json:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /admin/help:
+    get:
+      operationId: getHelpWorkspace
+      summary: Search role-relevant published guidance and the actor-visible scoped support queue
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: article_category
+          schema: { type: string, enum: [GETTING_STARTED, WORKFLOWS, CONTROLS, SECURITY, REPORTING] }
+        - in: query
+          name: case_status
+          schema: { type: string, enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED] }
+      responses:
+        "200":
+          description: Help catalog and support-case workspace
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HelpWorkspace" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/help/articles/{slug}:
+    parameters:
+      - { in: path, name: slug, required: true, schema: { type: string, pattern: '^[a-z0-9-]+$' } }
+    get:
+      operationId: getHelpArticle
+      summary: Read one published help article when its related screen is available to the current role
+      security: [{ sessionCookie: [] }]
+      responses:
+        "200":
+          description: Published help article
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/HelpArticle" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /admin/help/cases:
+    post:
+      operationId: createHelpSupportCase
+      summary: Open a support case in the selected company and plant
+      security: [{ sessionCookie: [] }]
+      parameters: *p2CreateHeaders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HelpSupportCaseCreateCommand" }
+      responses: *p2CreateResponses
+
+  /admin/help/cases/{caseId}:
+    parameters:
+      - { in: path, name: caseId, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getHelpSupportCase
+      summary: Read one requester-owned or support-manager-visible case and its versioned event history
+      security: [{ sessionCookie: [] }]
+      responses:
+        "200":
+          description: Support-case detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/HelpSupportCase" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /admin/help/cases/{caseId}/comments:
+    parameters:
+      - { in: path, name: caseId, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: commentOnHelpSupportCase
+      summary: Append a comment and advance the optimistic case version
+      security: [{ sessionCookie: [] }]
+      parameters: *p2VersionedHeaders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string, minLength: 2, maxLength: 4000 }
+      responses: *p2CommandResponses
+
+  /admin/help/cases/{caseId}/start:
+    parameters:
+      - { in: path, name: caseId, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: startHelpSupportCase
+      summary: Assign an open case to the acting support manager and start work
+      security: [{ sessionCookie: [] }]
+      parameters: *p2VersionedHeaders
+      responses: *p2CommandResponses
+
+  /admin/help/cases/{caseId}/resolve:
+    parameters:
+      - { in: path, name: caseId, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: resolveHelpSupportCase
+      summary: Record a support-manager resolution for requester confirmation
+      security: [{ sessionCookie: [] }]
+      parameters: *p2VersionedHeaders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution_summary]
+              properties:
+                resolution_summary: { type: string, minLength: 5, maxLength: 4000 }
+      responses: *p2CommandResponses
+
+  /admin/help/cases/{caseId}/reopen:
+    parameters:
+      - { in: path, name: caseId, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: reopenHelpSupportCase
+      summary: Reopen a resolved case while retaining its earlier resolution evidence
+      security: [{ sessionCookie: [] }]
+      parameters: *p2VersionedHeaders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5, maxLength: 4000 }
+      responses: *p2CommandResponses
+
+  /admin/help/cases/{caseId}/close:
+    parameters:
+      - { in: path, name: caseId, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: closeHelpSupportCase
+      summary: Confirm a recorded resolution and close the support case
+      security: [{ sessionCookie: [] }]
+      parameters: *p2VersionedHeaders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmation]
+              properties:
+                confirmation: { type: string, minLength: 5, maxLength: 4000 }
+      responses: *p2CommandResponses
+
 components:
   securitySchemes:
     sessionCookie:
@@ -10760,11 +11025,13 @@ components:
         email: { type: [string, "null"], format: email }
     AuditEvent:
       type: object
-      required: [id, request_id, correlation_id, command, entity_type, entity_id, entity_version, actor, outcome, reason_code, evidence_count, event_at, posted_at]
+      required: [id, request_id, correlation_id, trace_id, span_id, command, entity_type, entity_id, entity_version, actor, outcome, reason_code, evidence_count, event_at, posted_at]
       properties:
         id: { type: string, format: uuid }
         request_id: { type: [string, "null"], format: uuid }
         correlation_id: { type: [string, "null"], format: uuid }
+        trace_id: { type: [string, "null"], pattern: '^[0-9a-f]{32}$' }
+        span_id: { type: [string, "null"], pattern: '^[0-9a-f]{16}$' }
         command: { type: string }
         entity_type: { type: string }
         entity_id: { type: string, format: uuid }
@@ -10860,14 +11127,17 @@ components:
       enum: [PENDING, PROCESSING, RETRY, DELIVERED, QUARANTINED]
     OutboxEvent:
       type: object
-      required: [id, event_type, aggregate_type, aggregate_id, business_key, correlation_id, status, attempts, record_version, next_retry_at, last_attempt_at, delivered_at, acknowledged_at, acknowledgement_id, last_error_code, last_error_message, quarantined_at, quarantine_reason, created_at, updated_at, attempt_history_count, allowed_actions]
+      required: [id, event_type, aggregate_type, aggregate_id, business_key, request_id, correlation_id, trace_id, span_id, status, attempts, record_version, next_retry_at, last_attempt_at, delivered_at, acknowledged_at, acknowledgement_id, last_error_code, last_error_message, quarantined_at, quarantine_reason, created_at, updated_at, attempt_history_count, allowed_actions]
       properties:
         id: { type: string, format: uuid }
         event_type: { type: string }
         aggregate_type: { type: string }
         aggregate_id: { type: string, format: uuid }
         business_key: { type: string }
+        request_id: { type: [string, "null"], format: uuid }
         correlation_id: { type: [string, "null"], format: uuid }
+        trace_id: { type: [string, "null"], pattern: '^[0-9a-f]{32}$' }
+        span_id: { type: [string, "null"], pattern: '^[0-9a-f]{16}$' }
         status: { $ref: "#/components/schemas/OutboxStatus" }
         attempts: { type: integer, minimum: 0 }
         record_version: { type: integer, minimum: 1 }
@@ -11538,6 +11808,279 @@ components:
         approval_request_id: { type: string, format: uuid }
         loss_event_id: { type: string, format: uuid }
         loss_quantity: { type: string }
+    ReportParameterDefinition:
+      type: object
+      required: [key, label, type, default]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        type: { type: string, enum: [BOOLEAN] }
+        default: { type: boolean }
+    ReportColumn:
+      type: object
+      required: [key, label, type]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        type:
+          type: string
+          enum: [TEXT, DATE, MONEY, QUANTITY, PERCENT]
+    ReportDefinition:
+      type: object
+      required: [code, title, description, freshness_source, historical_cutoff, parameters, columns]
+      properties:
+        code:
+          type: string
+          enum: [TRIAL_BALANCE, RECEIVABLE_AGING, INVENTORY_AVAILABILITY, ORDER_FULFILMENT]
+        title: { type: string }
+        description: { type: string }
+        freshness_source: { type: string }
+        historical_cutoff: { type: boolean }
+        parameters:
+          type: array
+          items: { $ref: "#/components/schemas/ReportParameterDefinition" }
+        columns:
+          type: array
+          items: { $ref: "#/components/schemas/ReportColumn" }
+    ReportRunCommand:
+      type: object
+      required: [run_number, report_code, as_of_date]
+      properties:
+        run_number:
+          type: string
+          maxLength: 80
+          pattern: '^[A-Z0-9][A-Z0-9_/-]*$'
+        report_code:
+          type: string
+          enum: [TRIAL_BALANCE, RECEIVABLE_AGING, INVENTORY_AVAILABILITY, ORDER_FULFILMENT]
+        as_of_date: { type: string, format: date }
+        parameters:
+          type: object
+          additionalProperties: false
+          properties:
+            include_zero: { type: boolean }
+            include_settled: { type: boolean }
+            include_closed: { type: boolean }
+    ReportRow:
+      type: object
+      required: [id, row_number, group_key, data]
+      properties:
+        id: { type: string, format: uuid }
+        row_number: { type: integer, minimum: 1 }
+        group_key: { type: [string, "null"] }
+        data:
+          type: object
+          additionalProperties:
+            type: [string, number, boolean, "null"]
+    ReportExport:
+      type: object
+      required: [id, format, file_name, mime_type, row_count, size_bytes, sha256, created_at, created_by]
+      properties:
+        id: { type: string, format: uuid }
+        format: { type: string, enum: [CSV, JSON] }
+        file_name: { type: string }
+        mime_type: { type: string }
+        row_count: { type: integer, minimum: 0 }
+        size_bytes: { type: integer, minimum: 1 }
+        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        created_at: { type: string, format: date-time }
+        created_by: { $ref: "#/components/schemas/EntityReference" }
+    ReportRun:
+      type: object
+      required: [id, run_number, report_code, report_title, status, as_of_at, source_freshness_at, parameters, columns, row_count, totals, sha256, record_version, generated_at, created_at, created_by]
+      properties:
+        id: { type: string, format: uuid }
+        run_number: { type: string }
+        report_code:
+          type: string
+          enum: [TRIAL_BALANCE, RECEIVABLE_AGING, INVENTORY_AVAILABILITY, ORDER_FULFILMENT]
+        report_title: { type: string }
+        status: { type: string, enum: [GENERATED] }
+        as_of_at: { type: string, format: date-time }
+        source_freshness_at: { type: string, format: date-time }
+        parameters:
+          type: object
+          additionalProperties: { type: boolean }
+        columns:
+          type: array
+          items: { $ref: "#/components/schemas/ReportColumn" }
+        row_count: { type: integer, minimum: 0 }
+        totals:
+          type: object
+          additionalProperties: { type: [string, number] }
+        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        record_version: { type: integer, minimum: 1 }
+        generated_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+        created_by: { $ref: "#/components/schemas/EntityReference" }
+        definition: { $ref: "#/components/schemas/ReportDefinition" }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/ReportRow" }
+        exports:
+          type: array
+          items: { $ref: "#/components/schemas/ReportExport" }
+        allowed_actions:
+          type: array
+          items: { type: string, enum: [EXPORT] }
+    ReportingWorkspace:
+      type: object
+      required: [data, meta, summary, definitions, allowed_actions]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ReportRun" }
+        meta:
+          type: object
+          required: [total]
+          properties:
+            total: { type: integer, minimum: 0 }
+        summary:
+          type: object
+          required: [total_runs, rows_snapshotted, exports_created, latest_freshness_at]
+          properties:
+            total_runs: { type: integer, minimum: 0 }
+            rows_snapshotted: { type: integer, minimum: 0 }
+            exports_created: { type: integer, minimum: 0 }
+            latest_freshness_at: { type: [string, "null"], format: date-time }
+        definitions:
+          type: array
+          items: { $ref: "#/components/schemas/ReportDefinition" }
+        allowed_actions:
+          type: array
+          items: { type: string, enum: [RUN, EXPORT] }
+    HelpArticleSection:
+      type: object
+      required: [heading, content]
+      properties:
+        heading: { type: string }
+        content: { type: string }
+    HelpArticle:
+      type: object
+      required: [id, slug, category, related_screen_code, title, summary, content_version, published_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string, pattern: '^[a-z0-9-]+$' }
+        category:
+          type: string
+          enum: [GETTING_STARTED, WORKFLOWS, CONTROLS, SECURITY, REPORTING]
+        related_screen_code: { type: [string, "null"] }
+        title: { type: string }
+        summary: { type: string }
+        content_version: { type: integer, minimum: 1 }
+        published_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        sections:
+          type: array
+          items: { $ref: "#/components/schemas/HelpArticleSection" }
+    HelpSupportCaseEvent:
+      type: object
+      required: [id, sequence_number, event_type, status_from, status_to, message, actor, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        sequence_number: { type: integer, minimum: 1 }
+        event_type:
+          type: string
+          enum: [CREATED, COMMENTED, STARTED, RESOLVED, REOPENED, CLOSED]
+        status_from: { type: [string, "null"] }
+        status_to: { type: [string, "null"] }
+        message: { type: string }
+        actor: { $ref: "#/components/schemas/EntityReference" }
+        created_at: { type: string, format: date-time }
+    HelpSupportCase:
+      type: object
+      required: [id, case_number, category, priority, affected_screen_code, subject, description, status, record_version, requester, assigned_to, resolution_summary, resolved_at, closed_at, created_at, updated_at, allowed_actions]
+      properties:
+        id: { type: string, format: uuid }
+        case_number: { type: string }
+        category:
+          type: string
+          enum: [ACCESS, DATA, WORKFLOW, INTEGRATION, REPORTING, OTHER]
+        priority: { type: string, enum: [LOW, NORMAL, HIGH, CRITICAL] }
+        affected_screen_code: { type: [string, "null"], maxLength: 32 }
+        subject: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 8000 }
+        status: { type: string, enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED] }
+        record_version: { type: integer, minimum: 1 }
+        requester: { $ref: "#/components/schemas/EntityReference" }
+        assigned_to:
+          oneOf:
+            - $ref: "#/components/schemas/EntityReference"
+            - type: "null"
+        resolution_summary: { type: [string, "null"] }
+        resolved_at: { type: [string, "null"], format: date-time }
+        resolved_by:
+          oneOf:
+            - $ref: "#/components/schemas/EntityReference"
+            - type: "null"
+        closed_at: { type: [string, "null"], format: date-time }
+        closed_by:
+          oneOf:
+            - $ref: "#/components/schemas/EntityReference"
+            - type: "null"
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        allowed_actions:
+          type: array
+          items: { type: string, enum: [COMMENT, START, RESOLVE, REOPEN, CLOSE] }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/HelpSupportCaseEvent" }
+    HelpSupportCaseCreateCommand:
+      type: object
+      required: [category, priority, subject, description]
+      properties:
+        category:
+          type: string
+          enum: [ACCESS, DATA, WORKFLOW, INTEGRATION, REPORTING, OTHER]
+        priority: { type: string, enum: [LOW, NORMAL, HIGH, CRITICAL] }
+        affected_screen_code:
+          type: [string, "null"]
+          maxLength: 32
+          pattern: '^[A-Z0-9-]+$'
+        subject: { type: string, minLength: 3, maxLength: 200 }
+        description: { type: string, minLength: 10, maxLength: 8000 }
+    HelpWorkspace:
+      type: object
+      required: [articles, cases, summary, lookups, allowed_actions, is_support_manager]
+      properties:
+        articles:
+          type: array
+          items: { $ref: "#/components/schemas/HelpArticle" }
+        cases:
+          type: array
+          items: { $ref: "#/components/schemas/HelpSupportCase" }
+        summary:
+          type: object
+          required: [published_articles, visible_cases, open_cases, critical_open_cases]
+          properties:
+            published_articles: { type: integer, minimum: 0 }
+            visible_cases: { type: integer, minimum: 0 }
+            open_cases: { type: integer, minimum: 0 }
+            critical_open_cases: { type: integer, minimum: 0 }
+        lookups:
+          type: object
+          required: [case_categories, priorities, statuses, article_categories, screen_codes]
+          properties:
+            case_categories:
+              type: array
+              items: { type: string, enum: [ACCESS, DATA, WORKFLOW, INTEGRATION, REPORTING, OTHER] }
+            priorities:
+              type: array
+              items: { type: string, enum: [LOW, NORMAL, HIGH, CRITICAL] }
+            statuses:
+              type: array
+              items: { type: string, enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED] }
+            article_categories:
+              type: array
+              items: { type: string, enum: [GETTING_STARTED, WORKFLOWS, CONTROLS, SECURITY, REPORTING] }
+            screen_codes:
+              type: array
+              items: { type: string }
+        allowed_actions:
+          type: array
+          items: { type: string, enum: [CREATE, COMMENT, REOPEN, CLOSE, MANAGE] }
+        is_support_manager: { type: boolean }
     PaginationMeta:
       type: object
       required: [current_page, per_page, total, last_page, from, to]

@@ -2,11 +2,14 @@
 
 namespace App\Shared\Audit;
 
+use App\Shared\Observability\RequestContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class AuditService
 {
+    public function __construct(private readonly RequestContext $requestContext) {}
+
     public function record(
         string $command,
         string $entityType,
@@ -21,8 +24,10 @@ final class AuditService
 
         DB::table('audit_events')->insert([
             'id' => $id,
-            'request_id' => $context['request_id'] ?? null,
-            'correlation_id' => $context['correlation_id'] ?? null,
+            'request_id' => $context['request_id'] ?? $this->requestContext->requestId(),
+            'correlation_id' => $context['correlation_id'] ?? $this->requestContext->correlationId(),
+            'trace_id' => $context['trace_id'] ?? $this->requestContext->traceId(),
+            'span_id' => $context['span_id'] ?? $this->requestContext->spanId(),
             'command' => $command,
             'entity_type' => $entityType,
             'entity_id' => $entityId,

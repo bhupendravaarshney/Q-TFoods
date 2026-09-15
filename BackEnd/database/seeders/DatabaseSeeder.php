@@ -6,11 +6,16 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use LogicException;
 
 final class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        if (! config('deployment.allow_demo_seeders', false)) {
+            throw new LogicException('DatabaseSeeder contains development/UAT fixtures and is disabled in this environment.');
+        }
+
         DB::transaction(function () {
             $now = now();
             $companyId = '00000000-0000-4000-8000-000000000001';
@@ -113,7 +118,8 @@ final class DatabaseSeeder extends Seeder
                     'INB-GATE', 'INB-GRN', 'QC-IN', 'INB-RETURN', 'INV-STK', 'INV-ISS', 'INV-TRF', 'INV-COUNT',
                     'INV-EXP', 'MD-REC', 'MD-ROUTE', 'MD-SPEC', 'PLAN-DEM', 'PLAN-MRP', 'PLAN-SCH', 'PRO-ORDER',
                     'PRO-STAGE', 'PRO-LOSS', 'QC-LAB', 'QC-SAFE', 'PACK-ART', 'PACK-RUN', 'FG-LOT', 'TRACE-CASE',
-                    'COST-BATCH', 'RET-UNSOLD', 'ENG-MNT', 'SCALE-PLANT', 'OPT-PLAN', 'ADM-HELP',
+                    'COST-BATCH', 'DSP-PICK', 'DSP-LOAD', 'DSP-POD', 'RET-CASE', 'RET-UNSOLD',
+                    'ENG-MNT', 'SCALE-PLANT', 'OPT-PLAN', 'ADM-HELP',
                 ],
                 'FINANCE_REVIEWER' => [
                     'WRK-HOME', 'PUR-REQ', 'CRM-PRICE', 'BI-REP', 'BI-PROFIT', 'FIN-AR', 'FIN-AP', 'FIN-EXP', 'FIN-GL', 'COST-OH',
@@ -526,21 +532,27 @@ final class DatabaseSeeder extends Seeder
             $p3OptimisationReviewActions = [
                 'ACTION:OPT-PLAN:APPROVE', 'ACTION:OPT-PLAN:REJECT',
             ];
+            $helpUserActions = [
+                'ACTION:ADM-HELP:CREATE', 'ACTION:ADM-HELP:COMMENT',
+                'ACTION:ADM-HELP:REOPEN', 'ACTION:ADM-HELP:CLOSE',
+            ];
+            $reportActions = ['ACTION:BI-REP:RUN', 'ACTION:BI-REP:EXPORT'];
             $roleActions['SALES_MANAGER'] = array_values(array_unique([
-                ...$roleActions['SALES_MANAGER'], ...$p2SalesActions,
+                ...$roleActions['SALES_MANAGER'], ...$p2SalesActions, ...$helpUserActions,
             ]));
             $roleActions['OPERATIONS_MANAGER'] = array_values(array_unique([
                 ...$roleActions['OPERATIONS_MANAGER'], ...$p2OperationsActions, ...$p3TransferActions,
-                ...$p3OptimisationMakerActions,
+                ...$p3OptimisationMakerActions, ...$helpUserActions,
             ]));
             $roleActions['FINANCE_REVIEWER'] = array_values(array_unique([
                 ...$roleActions['FINANCE_REVIEWER'], ...$p2FinanceActions, ...$p3ConsolidationActions,
-                ...$p3OptimisationReviewActions,
+                ...$p3OptimisationReviewActions, ...$helpUserActions, ...$reportActions,
             ]));
             $roleActions['ERP_ADMIN'] = array_values(array_unique([
                 ...$roleActions['ERP_ADMIN'], ...$p2SalesActions, ...$p2OperationsActions, ...$p2FinanceActions,
                 ...$p3TransferActions, ...$p3ConsolidationActions, ...$p3AdministrationActions,
-                ...$p3OptimisationMakerActions, ...$p3OptimisationReviewActions,
+                ...$p3OptimisationMakerActions, ...$p3OptimisationReviewActions, ...$helpUserActions, ...$reportActions,
+                'ACTION:ADM-HELP:MANAGE',
                 'ACTION:CRM-PRICE:CREDIT',
                 'ACTION:PORTAL-EXT:ACCESS-GRANT', 'ACTION:PORTAL-EXT:ACCESS-UPDATE',
                 'ACTION:PORTAL-EXT:ACCESS-REVOKE', 'ACTION:PORTAL-EXT:DOCUMENT-PUBLISH',
@@ -740,6 +752,7 @@ final class DatabaseSeeder extends Seeder
             $this->call(P2ReferenceSeeder::class);
             $this->call(ScaleReferenceSeeder::class);
             $this->call(PortalReferenceSeeder::class);
+            $this->call(HelpReferenceSeeder::class);
         });
     }
 }

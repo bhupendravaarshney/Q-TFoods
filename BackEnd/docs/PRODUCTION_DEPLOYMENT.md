@@ -1,0 +1,124 @@
+# Production deployment baseline
+
+This repository includes a separate production Compose stack. It builds a no-development-dependencies PHP-FPM image, runs it as `www-data`, exposes only Caddy on ports 80/443, obtains and persists TLS certificates automatically, and keeps PostgreSQL, Redis, and MinIO on the internal Compose network. It also emits JSON application logs, exposes token-protected Prometheus metrics, serves separate liveness/readiness probes, and schedules operational threshold checks. The normal `docker-compose.yml` remains a loopback-only local development stack.
+
+The production stack is a single-host deployment baseline, not a high-availability design. The repository includes a tested backup/restore mechanism and recovery runbook, but do not treat it as launch-ready until the organisation has provisioned real secrets, scheduled encrypted off-host backups, connected monitoring/paging, run a target-environment restore, and formally approved its recovery objectives.
+
+## Prerequisites
+
+- A Linux host with a supported Docker Engine and Docker Compose plugin.
+- Public DNS for the API host pointing to that host.
+- Inbound TCP 80/443 and UDP 443 allowed for Caddy and ACME; PostgreSQL, Redis, and MinIO must remain private.
+- An HTTPS frontend origin on the same site as the API, such as `https://erp.company.example` with `https://api.erp.company.example`. The session policy is deliberately `SameSite=Lax`.
+- SMTP credentials for a TLS-capable delivery service.
+- An absolute host backup path on approved encrypted/restricted storage, writable by UID/GID 65532, plus approved retention and recovery objectives before live data is accepted.
+- A protected log/metric collection path and an on-call alert destination. The repository emits telemetry but does not deploy the organisation's collector, dashboard, paging service, or incident rota.
+
+## Prepare configuration and secrets
+
+Copy `.env.production.example` to an untracked file outside the repository or to the deployment host's protected configuration directory. Replace every `REPLACE_...` and `example.com` value. On Linux, restrict a file-backed configuration to its owner:
+
+```bash
+chmod 600 /secure/path/qtfoods-production.env
+```
+
+Generate the Laravel key from 32 cryptographically random bytes. One portable option is:
+
+```bash
+docker run --rm php:8.5-cli php -r 'echo "base64:".base64_encode(random_bytes(32)).PHP_EOL;'
+```
+
+Use independent random values for the Laravel key, PostgreSQL password, Redis password, MinIO root identity, MinIO application identity, SMTP password, metrics bearer token, and any outbox or alert signing secret. The stack provisions the `AWS_ACCESS_KEY_ID` as a dedicated MinIO application user; do not reuse `MINIO_ROOT_USER` for the application. Prefer injecting these values from the target platform's secret manager. The application checks minimum safety properties and known placeholders, but that cannot prove uniqueness, custody, or rotation.
+
+Important relationships:
+
+- `APP_HOST` is a host name only, without a scheme, port, or path.
+- `QT_CORS_ALLOWED_ORIGINS` is an exact comma-separated HTTPS origin list without trailing slashes.
+- `QT_FRONTEND_URL` must match the public frontend used in invitation, verification, and reset links.
+- `MAIL_SCHEME=smtp` with `MAIL_REQUIRE_TLS=true` uses required STARTTLS; use `smtps` for implicit TLS where the provider requires it.
+- `QT_METRICS_TOKEN` is a dedicated random value of at least 32 characters. Give it only to the scraper and rotate it independently of user or integration credentials.
+- `QT_ALERT_TRANSPORT=log` emits alert-ready JSON to stderr. Set it to `http` only with an approved HTTPS `QT_ALERT_HTTP_ENDPOINT` and an independent `QT_ALERT_SIGNING_SECRET` of at least 32 characters.
+- `QT_BACKUP_HOST_PATH` is a protected host path, never a repository directory in production. `QT_BACKUP_RETENTION_DAYS`, `QT_RECOVERY_RPO_MINUTES`, `QT_RECOVERY_RTO_MINUTES`, and `QT_RECOVERY_OBJECT_LIMIT` are bounded and checked at production boot.
+- `LOG_CHANNEL=stderr`, `LOG_LEVEL=info`, and the Monolog JSON formatter are enforced because request-completion and healthy operational events are emitted at info level.
+- Keep `QT_ALLOW_DEMO_SEEDERS=false`, `QT_IDENTITY_PREVIEW_LINKS=false`, and `APP_DEBUG=false`.
+
+The real production environment file is ignored by Git and excluded from the production Docker build context.
+
+The production Dockerfile and infrastructure services are digest-pinned to the versions verified with this repository. Review upstream release notes, update the digests deliberately, rebuild, and rerun the full verification suite as a controlled dependency change.
+
+## Validate before starting
+
+From `BackEnd`, render Compose and build all three release targets:
+
+```bash
+docker compose --env-file /secure/path/qtfoods-production.env -f docker-compose.production.yml --profile recovery config --quiet
+docker compose --env-file /secure/path/qtfoods-production.env -f docker-compose.production.yml --profile recovery build app gateway recovery
+```
+
+Run the application-level policy check from the built image without starting its dependencies:
+
+```bash
+docker compose --env-file /secure/path/qtfoods-production.env -f docker-compose.production.yml run --rm --no-deps app php artisan qt:deployment:verify
+```
+
+Production boot fails closed if the key, URL, host/proxy/CORS policy, cookies, database/Redis/object-store credentials, SMTP/TLS settings, masking, structured logging, Redis queue/session/metric state, readiness probes, metrics token, alert transport, recovery-policy bounds, preview-link setting, or seeder policy is unsafe. A failed check must be corrected; do not bypass it by changing `APP_ENV`.
+
+## Start and verify
+
+```bash
+docker compose --env-file /secure/path/qtfoods-production.env -f docker-compose.production.yml up -d --build
+docker compose --env-file /secure/path/qtfoods-production.env -f docker-compose.production.yml ps
+curl --fail https://api.erp.company.example/api/health
+curl --fail https://api.erp.company.example/api/ready
+curl --fail --header "Authorization: Bearer $QT_METRICS_TOKEN" https://api.erp.company.example/api/metrics
+```
+
+Startup ordering is deliberate: PostgreSQL, Redis, and MinIO become healthy; MinIO creates a private bucket and dedicated application user; the one-shot migration service re-runs the production guard and applies forward migrations; then PHP-FPM, the queue worker, scheduler, and TLS gateway start. The production stack never invokes `DatabaseSeeder`.
+
+Caddy redirects HTTP to HTTPS and persists ACME state in `caddy_data` and `caddy_config`. The application trusts only the immediate reverse proxy, validates the configured host, rejects insecure protected traffic, and adds HSTS, frame, MIME-sniffing, referrer, and browser-permission headers to secure responses.
+
+## Observability and alert routing
+
+`GET /api/health` is a dependency-free liveness probe. `GET /api/ready` verifies PostgreSQL, Redis, and the private object store and returns HTTP 503 when any required dependency is unavailable. Do not use liveness to decide whether the instance can receive business traffic; route traffic using readiness.
+
+Every HTTP response carries `X-Request-ID`, `X-Correlation-ID`, and a W3C `traceparent`. Valid caller-supplied UUID request/correlation identifiers and valid trace parents are continued; malformed values are replaced. Request IDs, trace IDs, and server span IDs are written onto new audit and outbox records, and outbox HTTP delivery starts a child span and forwards both correlation and trace headers. Search `ADM-AUD` or `ADM-INT` with an identifier from an error response or JSON log to follow the durable evidence chain.
+
+Successful and failed requests are logged as `http_request_completed` without bodies, query strings, cookies, authorisation headers, or metric tokens. Route templates are used instead of record-specific URLs. Queue and integration events use `queue_job_failed`, `outbox_batch_processed`, `outbox_delivery_completed`, and `outbox_delivery_failed`; scheduled monitoring uses `operational_health_checked`, `operational_alert`, and `operational_alert_delivery_failed`. The request and outbox completion records are duration-bearing trace spans. Ship container stderr as JSON without multiline transformation and retain the identifiers as indexed fields.
+
+`GET /api/metrics` uses Prometheus text format and requires the dedicated bearer token. It exposes bounded HTTP method/status/duration series plus dependency latency, queue depth, failed jobs, outbox state/age/failures, audit outcomes/context coverage, and current alert counts. Never put the token in a query string. Scrape over HTTPS, keep the endpoint out of public dashboards, alert on scrape failure, and rotate the token through the same controlled deployment process as other secrets.
+
+The scheduler runs `qt:observability:check` every five minutes. It evaluates dependency availability, failed jobs, quarantined/retrying/late outbox events, monitored queue depth, and recent audit records missing request/correlation/trace context. Thresholds are explicit `QT_ALERT_*` values in `.env.production.example`. The command exits 0 when healthy, 1 for warnings, and 2 for critical conditions; run it directly during commissioning:
+
+```bash
+docker compose --env-file /secure/path/qtfoods-production.env -f docker-compose.production.yml exec app php artisan qt:observability:check
+```
+
+Alert state is kept in Redis so unchanged alerts are suppressed until `QT_ALERT_RENOTIFY_SECONDS`; a transition back to healthy emits one resolved notification. The `log` transport requires the platform log collector to route `operational_alert` records to the on-call service. The optional HTTP transport sends the same safe snapshot with `X-QT-Alert-Signature: sha256=...`; the receiver must verify that HMAC over the exact request body and return a 2xx response. Test firing, repeat suppression, renotification, recovery, and receiver failure before accepting production traffic.
+
+## Backup and recovery
+
+The opt-in `recovery` Compose profile builds an image with pinned PostgreSQL/Redis clients and a source-built, security-patched MinIO `mc`; it runs without root privileges or Linux capabilities. It creates atomic, checksummed PostgreSQL-plus-object snapshots, verifies exact inventories, enforces bounded retention, recreates the database during restore, makes the object bucket exact, and invalidates Redis operational state. The application command `qt:recovery:verify` then streams every database-backed evidence/archive/partner object and reconciles migrations, outbox state, and failed jobs.
+
+Follow [`RECOVERY_RUNBOOK.md`](RECOVERY_RUNBOOK.md) for the write-stop boundary, protected-storage attestation, scheduled backup, exact destructive confirmation, exhaustive post-restore checks, queue/outbox decisions, application rollback, and drill evidence. The repeatable disposable drill is `deploy/recovery/verify-recovery.ps1`; it must never be substituted for a target-platform restore exercise and formal RPO/RTO approval.
+
+## Frontend release
+
+Copy `FrontEnd/.env.production.example` to an untracked `.env.production`, set `VITE_API_BASE_URL` to the exact HTTPS API origin, then build:
+
+```bash
+cd ../FrontEnd
+npm ci
+npm run build
+```
+
+Publish `dist/` through an HTTPS static host with SPA fallback to `index.html`. Its origin must exactly match `QT_CORS_ALLOWED_ORIGINS`; because authenticated requests use cookies, do not combine wildcard CORS with credentials.
+
+## Operations and rollback boundary
+
+- Inspect service health, readiness, metrics, scheduled-check output, and JSON logs with `docker compose ... ps` and `docker compose ... logs --since=30m SERVICE`.
+- Deploy immutable `IMAGE_TAG` values so the previous application and gateway images remain identifiable.
+- Run and monitor the recovery profile on the approved schedule, copy verified snapshots to immutable off-host custody, and back up Caddy state separately through the platform volume facility. Redis is deliberately invalidated rather than restored.
+- Run the documented isolated restore and queue/outbox reconciliation at least quarterly and after material persistence changes; retain measured evidence against the approved RPO/RTO.
+- Roll back application images only after confirming the migrated schema is backward-compatible. Never improvise a destructive database rollback on the live volumes.
+
+Production scheduling/off-host backup custody, target-environment recovery approval, external telemetry/alert-service onboarding, protected-branch enforcement, independent target-environment penetration/capacity approval, and high availability remain deployment work explicitly tracked in `ERP_IMPLEMENTATION_GAPS.md`.

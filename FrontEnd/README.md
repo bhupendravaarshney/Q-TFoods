@@ -49,6 +49,8 @@ Open `http://localhost:5173`. During local development, Vite proxies `/api` to `
 npm run build
 ```
 
+For a deployed build, copy `.env.production.example` to the Git-ignored `.env.production`, replace the example host, and set `VITE_API_BASE_URL` to the exact HTTPS API origin. Publish `dist/` from an HTTPS static host with SPA fallback. The frontend origin must be present verbatim in the backend's `QT_CORS_ALLOWED_ORIGINS`; use sibling same-site HTTPS hosts so the secure `SameSite=Lax` session cookie is sent. See [`../BackEnd/docs/PRODUCTION_DEPLOYMENT.md`](../BackEnd/docs/PRODUCTION_DEPLOYMENT.md).
+
 ## Automated tests
 
 Run the Vitest component suite:
@@ -62,11 +64,16 @@ Install the Playwright browser once, then run the live multi-role workflow:
 ```bash
 npm run test:e2e:install
 npm run test:e2e
+npm run test:e2e:a11y
+npm run test:quality:repository
+npm run test:quality:dynamic
 ```
 
-The browser suite requires Docker. It builds a separate backend at `127.0.0.1:18000`, starts the frontend at `127.0.0.1:4173`, migrates and seeds isolated PostgreSQL, Redis, and private MinIO storage, runs the real queue worker and scheduler, and removes all disposable volumes after the run. It never resets the normal development stack.
+The browser suite requires Docker. It builds a separate backend at `127.0.0.1:18000`, starts the frontend at `127.0.0.1:4173`, migrates and seeds isolated PostgreSQL, Redis, and private MinIO storage, runs the real queue worker and scheduler, and removes all disposable volumes after the run. It never resets the normal development stack. `test:e2e:a11y` runs the focused four-test accessibility and browser-edge subset; it audits WCAG A/AA rules across login, context selection, both shell layouts, the security dialog, and every registered business screen.
 
-The current verified baseline is 92 Vitest component tests and 17 live Chromium workflows, plus a clean production type-check/build.
+The current verified baseline is 97 Vitest component tests and 22 live Chromium workflows, plus a clean production type-check/build.
+
+The two quality commands require Docker. The repository command scans source, dependency manifests, configuration, and all three production backend image targets with pinned Trivy. The dynamic command uses its own disposable Compose project for the authenticated k6 threshold test and ZAP active API scan. Gate scope, exact thresholds, reports, CI behavior, and the required independent pre-release penetration/capacity work are documented in [`../quality/README.md`](../quality/README.md).
 
 Authentication, context selection, and access control use the live backend. Invitation acceptance, password reset, email verification, TOTP/recovery challenges, password change, and self/admin logical-device revocation are live; development email links are environment-gated. `ADM-ORG`, `ADM-LOC`, `ADM-USER`, and `ADM-ROLE` provide lifecycle-safe company/plant, hierarchical-location, invitation/direct-user/effective-assignment, and custom-role/permission administration. `ADM-RULE` creates and versions plant policies for Unsold Return and Purchase Requisition, with contiguous authority bands, SLA/escalation routing, and temporary approval delegation while showing the immutable policy applied to submitted work. `ADM-AUD` searches scoped immutable events, exposes safe diffs and identifiers, and privately views/downloads linked evidence without revealing object-storage paths. `ADM-INT` monitors delivery health and runtime settings, drills into payload/acknowledgement/attempt history, processes due work, and performs permissioned version-safe retry or quarantine operations.
 
@@ -102,6 +109,8 @@ Authentication, context selection, and access control use the live backend. Invi
 
 `OPT-PLAN` is a live P3 decision-support workspace. Operations captures an immutable, checksummed version of a released demand plan plus eligible/excluded stock, MRP shortages, and finalized costs; generates deterministic net-requirement stock/production recommendations with rationale and explicit limitations; and submits an unchanged source for independent Finance approval. Outcomes are versioned and every recommendation must have one before completion. The workspace never posts stock, production, purchasing, scheduling, or finance transactions.
 
-`RET-UNSOLD` has scoped customer/shipment/invoice/inventory lookups, a validated Sales create flow, a live recent-case detail workspace, role/state-aware Stores and Quality actions, a direct-or-delegated reviewer inbox, and approved inventory outcome/loss posting. Its staged Finance UI separately confirms the source invoice, records net credit and tax treatment, and completes exactly one receivable adjustment, refund, or replacement while showing the immutable action and balance history. The case workspace can attach privately retained PDF/image/text evidence in MinIO and shows its integrity hash, upload audit link, uploader, retention date, and authenticated download action. Current verification counts and the two remaining prototype screens are maintained in `ERP_IMPLEMENTATION_GAPS.md`.
+`BI-REP` generates immutable, scoped trial-balance, receivable-ageing, inventory-availability, and order-fulfilment snapshots with explicit cutoffs, source freshness, stored rows/totals, and SHA-256 integrity. CSV and JSON exports are materialised from those stored rows. `ADM-HELP` searches role-relevant published guidance and supports requester-owned cases through a versioned support-manager start/resolution and requester reopen/closure lifecycle.
+
+`RET-UNSOLD` has scoped customer/shipment/invoice/inventory lookups, a validated Sales create flow, a live recent-case detail workspace, role/state-aware Stores and Quality actions, a direct-or-delegated reviewer inbox, and approved inventory outcome/loss posting. Its staged Finance UI separately confirms the source invoice, records net credit and tax treatment, and completes exactly one receivable adjustment, refund, or replacement while showing the immutable action and balance history. The case workspace can attach privately retained PDF/image/text evidence in MinIO and shows its integrity hash, upload audit link, uploader, retention date, and authenticated download action. Current verification counts and production-readiness gaps are maintained in `ERP_IMPLEMENTATION_GAPS.md`.
 
 See [`../ERP_IMPLEMENTATION_GAPS.md`](../ERP_IMPLEMENTATION_GAPS.md) for the complete screen inventory, prioritised backlog, and definition of done.

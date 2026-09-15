@@ -99,7 +99,7 @@ describe('control operations workspaces', () => {
 function auditWorkspace(): AuditWorkspace {
   return {
     data: [{
-      id: 'audit-1', request_id: 'request-1', correlation_id: 'correlation-1',
+      id: 'audit-1', request_id: 'request-1', correlation_id: 'correlation-1', trace_id: 'trace-1', span_id: 'span-1',
       command: 'UPLOAD_UNSOLD_RETURN_EVIDENCE', entity_type: 'unsold_return_evidence',
       entity_id: 'evidence-1', entity_version: 2,
       actor: { id: 'admin-1', name: 'Demo ERP Administrator', email: 'admin@qtfoods.local' },
@@ -135,7 +135,7 @@ function outboxWorkspace(): OutboxWorkspace {
   return {
     data: [{
       id: 'outbox-1', event_type: 'sales.unsold_return.created', aggregate_type: 'unsold_return_case',
-      aggregate_id: 'case-1', business_key: 'case-1:1', correlation_id: 'correlation-1',
+      aggregate_id: 'case-1', business_key: 'case-1:1', request_id: 'request-1', correlation_id: 'correlation-1', trace_id: 'trace-1', span_id: 'span-1',
       status: 'QUARANTINED', attempts: 2, record_version: 5, next_retry_at: null,
       last_attempt_at: now, delivered_at: null, acknowledged_at: null, acknowledgement_id: null,
       last_error_code: 'RuntimeException', last_error_message: 'Receiver unavailable',

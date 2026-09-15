@@ -48,6 +48,8 @@ final class ConfiguredOutboxTransport implements OutboxTransport
                 'X-QT-Event-Type' => $event['event_type'],
                 'X-QT-Signature' => 'sha256='.hash_hmac('sha256', $body, $secret),
                 'Idempotency-Key' => $event['id'],
+                'X-Correlation-ID' => $event['correlation_id'] ?? $event['id'],
+                'traceparent' => $event['traceparent'],
             ])
             ->withBody($body, 'application/json')
             ->post($endpoint);

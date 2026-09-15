@@ -36,6 +36,7 @@ final class AuditController
             'entity_id' => ['sometimes', 'uuid'],
             'request_id' => ['sometimes', 'uuid'],
             'correlation_id' => ['sometimes', 'uuid'],
+            'trace_id' => ['sometimes', 'regex:/^[0-9a-f]{32}$/'],
             'from' => ['sometimes', 'date'],
             'to' => ['sometimes', 'date', 'after_or_equal:from'],
             'sort' => ['sometimes', 'string', Rule::in(AuditQuery::SORTS)],

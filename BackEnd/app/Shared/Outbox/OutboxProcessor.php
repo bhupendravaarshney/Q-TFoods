@@ -2,9 +2,11 @@
 
 namespace App\Shared\Outbox;
 
+use App\Shared\Observability\TraceContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -31,11 +33,26 @@ final class OutboxProcessor
             }
             $result['claimed']++;
             $result['event_ids'][] = (string) $event->id;
+            $envelope = null;
+            $deliveryStartedAt = hrtime(true);
 
             try {
-                $delivery = $this->transport->deliver($this->envelope($event));
+                $envelope = $this->envelope($event);
+                $delivery = $this->transport->deliver($envelope);
                 if ($this->markDelivered($event, $workerId, $delivery)) {
                     $result['delivered']++;
+                    Log::info('outbox_delivery_completed', [
+                        'event' => 'outbox_delivery_completed',
+                        'outbox_event_id' => (string) $event->id,
+                        'event_type' => (string) $event->event_type,
+                        'attempt' => (int) $event->attempts,
+                        'duration_ms' => max(0, (int) round((hrtime(true) - $deliveryStartedAt) / 1_000_000)),
+                        'transport' => $this->transport->name(),
+                        'correlation_id' => $envelope['correlation_id'],
+                        'trace_id' => $envelope['trace_id'],
+                        'span_id' => $envelope['span_id'],
+                        'parent_span_id' => $envelope['parent_span_id'],
+                    ]);
                 }
             } catch (Throwable $exception) {
                 $outcome = $this->markFailed($event, $workerId, $exception);
@@ -44,6 +61,19 @@ final class OutboxProcessor
                 } elseif ($outcome === 'RETRY') {
                     $result['retry_scheduled']++;
                 }
+                Log::log($outcome === 'QUARANTINED' ? 'critical' : 'warning', 'outbox_delivery_failed', [
+                    'event' => 'outbox_delivery_failed',
+                    'outbox_event_id' => (string) $event->id,
+                    'event_type' => (string) $event->event_type,
+                    'attempt' => (int) $event->attempts,
+                    'outcome' => $outcome,
+                    'duration_ms' => max(0, (int) round((hrtime(true) - $deliveryStartedAt) / 1_000_000)),
+                    'error_type' => class_basename($exception),
+                    'correlation_id' => $event->correlation_id ? (string) $event->correlation_id : null,
+                    'trace_id' => $envelope['trace_id'] ?? ($event->trace_id ? (string) $event->trace_id : null),
+                    'span_id' => $envelope['span_id'] ?? null,
+                    'parent_span_id' => $envelope['parent_span_id'] ?? ($event->span_id ? (string) $event->span_id : null),
+                ]);
             }
         }
 
@@ -209,6 +239,11 @@ final class OutboxProcessor
 
     private function envelope(object $event): array
     {
+        $trace = TraceContext::child(
+            $event->trace_id ? (string) $event->trace_id : null,
+            $event->span_id ? (string) $event->span_id : null,
+        );
+
         return [
             'id' => (string) $event->id,
             'event_type' => (string) $event->event_type,
@@ -217,7 +252,12 @@ final class OutboxProcessor
             'business_key' => (string) $event->business_key,
             'company_id' => $event->company_id ? (string) $event->company_id : null,
             'plant_id' => $event->plant_id ? (string) $event->plant_id : null,
+            'request_id' => $event->request_id ? (string) $event->request_id : null,
             'correlation_id' => $event->correlation_id ? (string) $event->correlation_id : null,
+            'trace_id' => $trace['trace_id'],
+            'span_id' => $trace['span_id'],
+            'parent_span_id' => $trace['parent_span_id'],
+            'traceparent' => $trace['traceparent'],
             'occurred_at' => CarbonImmutable::parse((string) $event->created_at)->utc()->toIso8601String(),
             'attempt' => (int) $event->attempts,
             'payload' => $this->json($event->payload_json),

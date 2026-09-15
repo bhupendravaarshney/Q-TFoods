@@ -78,8 +78,24 @@
     "event_retry": "/api/v1/admin/outbox-events/{eventId}/retry",
     "event_quarantine": "/api/v1/admin/outbox-events/{eventId}/quarantine"
   },
-  "ADM-HELP": null,
-  "BI-REP": null,
+  "ADM-HELP": {
+    "workspace": "/api/v1/admin/help",
+    "article_detail": "/api/v1/admin/help/articles/{slug}",
+    "case_detail": "/api/v1/admin/help/cases/{caseId}",
+    "case_create": "/api/v1/admin/help/cases",
+    "case_comment": "/api/v1/admin/help/cases/{caseId}/comments",
+    "case_start": "/api/v1/admin/help/cases/{caseId}/start",
+    "case_resolve": "/api/v1/admin/help/cases/{caseId}/resolve",
+    "case_reopen": "/api/v1/admin/help/cases/{caseId}/reopen",
+    "case_close": "/api/v1/admin/help/cases/{caseId}/close"
+  },
+  "BI-REP": {
+    "workspace": "/api/v1/reports",
+    "run_detail": "/api/v1/reports/runs/{runId}",
+    "run_generate": "/api/v1/reports/runs",
+    "export_create": "/api/v1/reports/runs/{runId}/exports",
+    "export_download": "/api/v1/reports/exports/{exportId}/download"
+  },
   "MD-PARTY": {
     "workspace": "/api/v1/master/parties",
     "detail": "/api/v1/master/parties/{partyId}",

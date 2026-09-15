@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ObservabilityController;
 use App\Modules\Control\Http\Controllers\ApprovalRuleController;
 use App\Modules\Control\Http\Controllers\AuditController;
 use App\Modules\Control\Http\Controllers\OutboxController;
@@ -9,6 +10,7 @@ use App\Modules\Finance\Http\Controllers\FinanceSupplementController;
 use App\Modules\Foundation\Http\Controllers\AuthController;
 use App\Modules\Foundation\Http\Controllers\ContextController;
 use App\Modules\Foundation\Http\Controllers\DeviceSessionController;
+use App\Modules\Foundation\Http\Controllers\HelpSupportController;
 use App\Modules\Foundation\Http\Controllers\IdentityAdminController;
 use App\Modules\Foundation\Http\Controllers\IdentityController;
 use App\Modules\Foundation\Http\Controllers\LocationAdminController;
@@ -27,6 +29,7 @@ use App\Modules\Procurement\Http\Controllers\PurchaseOrderController;
 use App\Modules\Procurement\Http\Controllers\PurchaseRequisitionController;
 use App\Modules\Procurement\Http\Controllers\RequestForQuotationController;
 use App\Modules\Procurement\Http\Controllers\InboundProcurementController;
+use App\Modules\Reporting\Http\Controllers\ReportingController;
 use App\Modules\Sales\Http\Controllers\UnsoldSalesReturnApprovalController;
 use App\Modules\Sales\Http\Controllers\UnsoldSalesReturnController;
 use App\Modules\Sales\Http\Controllers\UnsoldSalesReturnEvidenceController;
@@ -42,6 +45,9 @@ Route::get('/health', fn () => [
     'service' => 'qt-foods-erp-crm',
     'architecture' => 'modular-monolith',
 ]);
+Route::get('/ready', [ObservabilityController::class, 'readiness']);
+Route::get('/metrics', [ObservabilityController::class, 'metrics'])
+    ->middleware('observability.metrics');
 
 Route::middleware('web')->prefix('v1')->group(function () {
     Route::get('/auth/csrf', [AuthController::class, 'csrf']);
@@ -208,6 +214,36 @@ Route::middleware('web')->prefix('v1')->group(function () {
             Route::post('/admin/outbox-events/{eventId}/quarantine', [OutboxController::class, 'quarantine'])
                 ->whereUuid('eventId')
                 ->middleware(['erp.screen:ADM-INT', 'erp.permission:ACTION:ADM-INT:QUARANTINE']);
+
+            Route::get('/admin/help', [HelpSupportController::class, 'index'])
+                ->middleware('erp.screen:ADM-HELP');
+            Route::get('/admin/help/articles/{slug}', [HelpSupportController::class, 'article'])
+                ->where('slug', '[a-z0-9-]+')->middleware('erp.screen:ADM-HELP');
+            Route::get('/admin/help/cases/{caseId}', [HelpSupportController::class, 'supportCase'])
+                ->whereUuid('caseId')->middleware('erp.screen:ADM-HELP');
+            Route::post('/admin/help/cases', [HelpSupportController::class, 'create'])
+                ->middleware(['erp.screen:ADM-HELP', 'erp.permission:ACTION:ADM-HELP:CREATE']);
+            Route::post('/admin/help/cases/{caseId}/comments', [HelpSupportController::class, 'comment'])
+                ->whereUuid('caseId')->middleware(['erp.screen:ADM-HELP', 'erp.permission:ACTION:ADM-HELP:COMMENT']);
+            Route::post('/admin/help/cases/{caseId}/start', [HelpSupportController::class, 'start'])
+                ->whereUuid('caseId')->middleware(['erp.screen:ADM-HELP', 'erp.permission:ACTION:ADM-HELP:MANAGE']);
+            Route::post('/admin/help/cases/{caseId}/resolve', [HelpSupportController::class, 'resolve'])
+                ->whereUuid('caseId')->middleware(['erp.screen:ADM-HELP', 'erp.permission:ACTION:ADM-HELP:MANAGE']);
+            Route::post('/admin/help/cases/{caseId}/reopen', [HelpSupportController::class, 'reopen'])
+                ->whereUuid('caseId')->middleware(['erp.screen:ADM-HELP', 'erp.permission:ACTION:ADM-HELP:REOPEN']);
+            Route::post('/admin/help/cases/{caseId}/close', [HelpSupportController::class, 'close'])
+                ->whereUuid('caseId')->middleware(['erp.screen:ADM-HELP', 'erp.permission:ACTION:ADM-HELP:CLOSE']);
+
+            Route::get('/reports', [ReportingController::class, 'index'])
+                ->middleware('erp.screen:BI-REP');
+            Route::get('/reports/runs/{runId}', [ReportingController::class, 'show'])
+                ->whereUuid('runId')->middleware('erp.screen:BI-REP');
+            Route::post('/reports/runs', [ReportingController::class, 'generate'])
+                ->middleware(['erp.screen:BI-REP', 'erp.permission:ACTION:BI-REP:RUN']);
+            Route::post('/reports/runs/{runId}/exports', [ReportingController::class, 'createExport'])
+                ->whereUuid('runId')->middleware(['erp.screen:BI-REP', 'erp.permission:ACTION:BI-REP:EXPORT']);
+            Route::get('/reports/exports/{exportId}/download', [ReportingController::class, 'download'])
+                ->whereUuid('exportId')->middleware(['erp.screen:BI-REP', 'erp.permission:ACTION:BI-REP:EXPORT']);
 
             Route::get('/master/parties', [PartyController::class, 'index'])
                 ->middleware('erp.screen:MD-PARTY');

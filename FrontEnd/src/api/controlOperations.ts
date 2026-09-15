@@ -23,6 +23,8 @@ export type AuditEvent = {
   id: string;
   request_id: string | null;
   correlation_id: string | null;
+  trace_id: string | null;
+  span_id: string | null;
   command: string;
   entity_type: string;
   entity_id: string;
@@ -86,7 +88,10 @@ export type OutboxEvent = {
   aggregate_type: string;
   aggregate_id: string;
   business_key: string;
+  request_id: string | null;
   correlation_id: string | null;
+  trace_id: string | null;
+  span_id: string | null;
   status: OutboxStatus;
   attempts: number;
   record_version: number;

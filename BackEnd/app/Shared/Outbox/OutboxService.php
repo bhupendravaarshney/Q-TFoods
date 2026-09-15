@@ -2,11 +2,14 @@
 
 namespace App\Shared\Outbox;
 
+use App\Shared\Observability\RequestContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class OutboxService
 {
+    public function __construct(private readonly RequestContext $requestContext) {}
+
     public function append(
         string $eventType,
         string $aggregateType,
@@ -18,6 +21,7 @@ final class OutboxService
         ?string $plantId = null,
     ): string {
         $id = (string) Str::uuid();
+        $correlationId ??= $this->requestContext->correlationId();
         [$companyId, $plantId] = $this->resolveScope(
             $aggregateId,
             $payload,
@@ -33,7 +37,10 @@ final class OutboxService
             'aggregate_id' => $aggregateId,
             'business_key' => $businessKey,
             'payload_json' => json_encode($payload, JSON_THROW_ON_ERROR),
+            'request_id' => $this->requestContext->requestId(),
             'correlation_id' => $correlationId,
+            'trace_id' => $this->requestContext->traceId(),
+            'span_id' => $this->requestContext->spanId(),
             'company_id' => $companyId,
             'plant_id' => $plantId,
             'status' => 'PENDING',

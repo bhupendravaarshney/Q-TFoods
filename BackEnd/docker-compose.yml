@@ -4,21 +4,35 @@ x-app-environment: &app-environment
   APP_KEY: "${APP_KEY:-base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}"
   APP_DEBUG: "true"
   APP_URL: http://localhost:8000
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: debug
+  LOG_STDERR_FORMATTER: Monolog\Formatter\JsonFormatter
   DB_CONNECTION: pgsql
   DB_HOST: postgres
   DB_PORT: 5432
   DB_DATABASE: qtfoods
   DB_USERNAME: qtfoods
   DB_PASSWORD: qtfoods
+  DB_MASK_BINDINGS: "false"
   CACHE_STORE: redis
   QUEUE_CONNECTION: redis
   SESSION_DRIVER: redis
   REDIS_HOST: redis
   REDIS_PORT: 6379
+  REDIS_PASSWORD: null
+  SESSION_COOKIE: qt_foods_erp_session
+  SESSION_ENCRYPT: "false"
+  SESSION_SECURE_COOKIE: "false"
+  SESSION_HTTP_ONLY: "true"
+  SESSION_SAME_SITE: lax
   FILESYSTEM_DISK: local
   MAIL_MAILER: log
   MAIL_FROM_ADDRESS: no-reply@qtfoods.local
   QT_FRONTEND_URL: http://localhost:5173
+  QT_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+  QT_TRUSTED_HOSTS: localhost,127.0.0.1
+  QT_ENFORCE_HTTPS: "false"
+  QT_ALLOW_DEMO_SEEDERS: "true"
   QT_IDENTITY_PREVIEW_LINKS: "true"
   QT_EVIDENCE_DISK: evidence
   QT_EVIDENCE_LEGACY_ROOT: /legacy-evidence
@@ -31,12 +45,18 @@ x-app-environment: &app-environment
   AWS_BUCKET: qtfoods-evidence
   AWS_ENDPOINT: http://minio:9000
   AWS_USE_PATH_STYLE_ENDPOINT: "true"
+  AWS_CONNECT_TIMEOUT_SECONDS: 2
+  AWS_REQUEST_TIMEOUT_SECONDS: 5
   QT_OUTBOX_TRANSPORT: log
   QT_OUTBOX_BATCH_SIZE: 50
   QT_OUTBOX_MAX_ATTEMPTS: 8
   QT_OUTBOX_BASE_RETRY_SECONDS: 30
   QT_OUTBOX_MAX_RETRY_SECONDS: 3600
   QT_OUTBOX_LOCK_TIMEOUT_SECONDS: 300
+  QT_READINESS_DATABASE: "true"
+  QT_READINESS_REDIS: "true"
+  QT_READINESS_OBJECT_STORAGE: "true"
+  QT_ALERT_TRANSPORT: log
 
 x-app-dependencies: &app-dependencies
   postgres:
@@ -65,7 +85,7 @@ services:
     command: php artisan serve --host=0.0.0.0 --port=8000
     environment: *app-environment
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -100,7 +120,7 @@ services:
       POSTGRES_USER: qtfoods
       POSTGRES_PASSWORD: qtfoods
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - qt_pg:/var/lib/postgresql
     healthcheck:
@@ -112,7 +132,7 @@ services:
   redis:
     image: redis:8
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -126,8 +146,8 @@ services:
       MINIO_ROOT_USER: qtfoods
       MINIO_ROOT_PASSWORD: qtfoods-secret-change-me
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - qt_minio:/data
     healthcheck:

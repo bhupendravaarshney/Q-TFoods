@@ -5,6 +5,12 @@ const WESTERN_SUPPLIER = '00000000-0000-4000-8000-000000000503';
 const DECCAN_SUPPLIER = '00000000-0000-4000-8000-000000000504';
 
 test('Operations sources an approved requisition and controls its purchase order', async ({ page }) => {
+  const requestedDate = dateFromToday(0);
+  const responseDueDate = dateFromToday(7);
+  const westernDeliveryDate = dateFromToday(24);
+  const deccanDeliveryDate = dateFromToday(23);
+  const requiredByDate = dateFromToday(30);
+
   await loginAndSelect(page, 'operations.user@qtfoods.local');
   let navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
   await navigation.getByRole('button', { name: /PUR-REQ/ }).click();
@@ -15,8 +21,8 @@ test('Operations sources an approved requisition and controls its purchase order
   await editor.getByLabel('Requisition number').fill('E2E-REQ-001');
   await editor.getByLabel('Department').fill('Production');
   await editor.getByLabel('Purpose').fill('Replenish apple ingredient stock for the production plan.');
-  await editor.getByLabel('Requested date').fill('2026-09-11');
-  await editor.getByLabel('Required by date').fill('2026-09-25');
+  await editor.getByLabel('Requested date').fill(requestedDate);
+  await editor.getByLabel('Required by date').fill(requiredByDate);
   await editor.getByLabel('Line 1 item').selectOption(RAW_ITEM);
   await editor.getByLabel('Line 1 quantity').fill('20');
   await editor.getByLabel('Line 1 estimated unit cost').fill('50');
@@ -55,7 +61,7 @@ test('Operations sources an approved requisition and controls its purchase order
   await rfqEditor.getByLabel('RFQ number').fill('E2E-RFQ-001');
   const requisitionOption = rfqEditor.getByLabel('Approved requisition').locator('option').filter({ hasText: 'E2E-REQ-001' });
   await rfqEditor.getByLabel('Approved requisition').selectOption(await requisitionOption.getAttribute('value') ?? '');
-  await rfqEditor.getByLabel('Response due date').fill('2026-09-14');
+  await rfqEditor.getByLabel('Response due date').fill(responseDueDate);
   await rfqEditor.getByLabel(/Western Ingredients Pvt Ltd/).check();
   await rfqEditor.getByLabel(/Deccan Supply Cooperative/).check();
   await rfqEditor.getByLabel('Commercial instructions').fill('Quote landed INR cost and attach batch certificate details.');
@@ -67,8 +73,8 @@ test('Operations sources an approved requisition and controls its purchase order
   await expect(rfqEditor.getByRole('status')).toContainText('RFQ issued to all selected suppliers');
   await expect(rfqEditor.locator('.status').filter({ hasText: /^ISSUED$/ })).toBeVisible();
 
-  await recordQuote(page, rfqEditor, WESTERN_SUPPLIER, 'WEST-E2E-001', '48', '2026-09-24');
-  await recordQuote(page, rfqEditor, DECCAN_SUPPLIER, 'DECCAN-E2E-001', '49', '2026-09-23');
+  await recordQuote(page, rfqEditor, WESTERN_SUPPLIER, 'WEST-E2E-001', '48', westernDeliveryDate);
+  await recordQuote(page, rfqEditor, DECCAN_SUPPLIER, 'DECCAN-E2E-001', '49', deccanDeliveryDate);
   const comparison = rfqEditor.locator('.comparison-table');
   await expect(comparison.locator('tbody tr')).toHaveCount(2);
   await comparison.locator('tbody tr').filter({ hasText: 'Western Ingredients Pvt Ltd' }).getByRole('button', { name: 'Select' }).click();
@@ -84,7 +90,7 @@ test('Operations sources an approved requisition and controls its purchase order
   await orderEditor.getByLabel('Purchase-order number').fill('E2E-PO-001');
   const rfqOption = orderEditor.getByLabel('Awarded RFQ').locator('option').filter({ hasText: 'E2E-RFQ-001' });
   await orderEditor.getByLabel('Awarded RFQ').selectOption(await rfqOption.getAttribute('value') ?? '');
-  await orderEditor.getByLabel('Order date').fill('2026-09-11');
+  await orderEditor.getByLabel('Order date').fill(requestedDate);
   await orderEditor.getByLabel('Delivery terms').fill('Deliver to the raw-material receiving bay.');
   await orderEditor.getByRole('button', { name: 'Create draft order' }).click();
   await expect(orderEditor.getByRole('status')).toContainText('Draft purchase order created from the awarded supplier quote');
@@ -119,8 +125,8 @@ async function recordQuote(
   await editor.getByRole('button', { name: 'Record supplier quote' }).click();
   await editor.getByLabel('Quote supplier').selectOption(supplierId);
   await editor.getByLabel('Supplier quote number').fill(quoteNumber);
-  await editor.getByLabel('Quote date').fill('2026-09-11');
-  await editor.getByLabel('Valid until').fill('2026-09-30');
+  await editor.getByLabel('Quote date').fill(dateFromToday(0));
+  await editor.getByLabel('Valid until').fill(dateFromToday(21));
   await editor.getByLabel('Promised delivery').fill(promisedDelivery);
   await editor.getByLabel('Line 1 unit price').fill(unitPrice);
   await editor.getByRole('button', { name: 'Record supplier quote' }).click();
@@ -135,4 +141,10 @@ async function loginAndSelect(page: Page, email: string): Promise<void> {
   await page.getByLabel('Password').fill('prototype');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByRole('button', { name: /Training Plant/ }).click();
+}
+
+function dateFromToday(days: number): string {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
