@@ -9,9 +9,9 @@ const EXPIRED_TARGET = '00000000-0000-4000-8000-000000001219';
 
 test('Operations Manager posts the complete controlled inventory operation cycle', async ({ page }) => {
   await loginAndSelect(page);
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
 
-  await navigation.getByRole('button', { name: /INV-ISS/ }).click();
+  await navigation.locator('[data-screen-code="INV-ISS"]').click();
   await expect(page.getByRole('heading', { name: 'Issue / Return' })).toBeVisible();
   await createAndPost(page, {
     number: 'E2E-ISS-001', reason: 'PRODUCTION_ISSUE', source: AVAILABLE, quantity: '4',
@@ -20,14 +20,14 @@ test('Operations Manager posts the complete controlled inventory operation cycle
     number: 'E2E-RET-001', type: 'RETURN', reason: 'PRODUCTION_RETURN', target: RETURN_TARGET, quantity: '2',
   });
 
-  await navigation.getByRole('button', { name: /INV-TRF/ }).click();
+  await navigation.locator('[data-screen-code="INV-TRF"]').click();
   await expect(page.getByRole('heading', { name: 'Stock Transfers' })).toBeVisible();
   await createAndPost(page, {
     number: 'E2E-TRF-001', reason: 'LINE_REPLENISHMENT', source: AVAILABLE,
     target: TRANSFER_TARGET, quantity: '5',
   });
 
-  await navigation.getByRole('button', { name: /INV-COUNT/ }).click();
+  await navigation.locator('[data-screen-code="INV-COUNT"]').click();
   await expect(page.getByRole('heading', { name: 'Stock Counts & Adjustments' })).toBeVisible();
   await createAndPost(page, {
     number: 'E2E-CNT-001', reason: 'CYCLE_COUNT', source: BLOCKED, counted: '14',
@@ -37,7 +37,7 @@ test('Operations Manager posts the complete controlled inventory operation cycle
     quantity: '2', direction: 'INCREASE',
   });
 
-  await navigation.getByRole('button', { name: /INV-EXP/ }).click();
+  await navigation.locator('[data-screen-code="INV-EXP"]').click();
   await expect(page.getByRole('heading', { name: 'Expiry / Disposal' })).toBeVisible();
   await createAndPost(page, {
     number: 'E2E-EXP-001', reason: 'SHELF_LIFE', source: EXPIRED_SOURCE,
@@ -48,7 +48,7 @@ test('Operations Manager posts the complete controlled inventory operation cycle
     source: EXPIRED_TARGET, quantity: '3',
   });
 
-  await navigation.getByRole('button', { name: /INV-STK/ }).click();
+  await navigation.locator('[data-screen-code="INV-STK"]').click();
   await expect(page.getByRole('heading', { name: 'Stock, Lots & Ownership' })).toBeVisible();
   await page.getByRole('button', { name: 'Movement history' }).click();
   await expect(page.getByRole('heading', { name: 'Immutable movement history' })).toBeVisible();

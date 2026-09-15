@@ -172,7 +172,7 @@ final class ApprovalGovernanceEndpointTest extends TestCase
             ->assertOk()
             ->assertJsonFragment(['ACTION:RET-UNSOLD:APPROVE'])
             ->assertJsonPath('data.delegated_authorities.0.id', $delegation['id'])
-            ->assertJsonPath('data.delegated_authorities.0.delegator.name', 'Demo Finance Reviewer');
+            ->assertJsonPath('data.delegated_authorities.0.delegator.name', 'Demo Finance Manager');
         $this->decision($approvalId, 'approve', 1)
             ->assertOk()
             ->assertJsonPath('data.authority_source', 'DELEGATION')

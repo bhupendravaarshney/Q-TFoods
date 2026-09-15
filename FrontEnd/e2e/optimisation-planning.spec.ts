@@ -6,10 +6,10 @@ const PLAN_NUMBER = 'E2E-OPT-PLAN-001';
 test('optimisation versions demand, exposes limitations, requires review, and closes on measured outcomes', async ({ page }) => {
   test.setTimeout(180_000);
   await loginAndSelect(page, 'operations.user@qtfoods.local');
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
   const editor = page.locator('.requisition-editor');
 
-  await navigation.getByRole('button', { name: /PLAN-DEM/ }).click();
+  await navigation.locator('[data-screen-code="PLAN-DEM"]').click();
   await expect(page.getByRole('heading', { name: 'Demand Planning' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await editor.getByLabel('Plan number').fill(DEMAND_NUMBER);
@@ -24,7 +24,7 @@ test('optimisation versions demand, exposes limitations, requires review, and cl
   await editor.getByRole('button', { name: 'Release to MRP' }).click();
   await expect(editor.getByRole('status')).toContainText('Demand released to MRP');
 
-  await navigation.getByRole('button', { name: /OPT-PLAN/ }).click();
+  await navigation.locator('[data-screen-code="OPT-PLAN"]').click();
   await expect(page.getByRole('heading', { name: 'Forecast & Optimisation' })).toBeVisible();
   await expect(page.locator('.optimisation-notice')).toContainText('checksum-versioned');
   await page.getByRole('button', { name: '+ New' }).click();
@@ -75,8 +75,8 @@ test('optimisation versions demand, exposes limitations, requires review, and cl
 });
 
 async function openOptimisation(page: Page, planNumber: string): Promise<void> {
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /OPT-PLAN/ }).click();
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="OPT-PLAN"]').click();
   await expect(page.getByRole('heading', { name: 'Forecast & Optimisation' })).toBeVisible();
   await page.getByLabel('Optimisation search').fill(planNumber);
   const row = page.locator('.optimisation-register tbody tr').filter({ hasText: planNumber });

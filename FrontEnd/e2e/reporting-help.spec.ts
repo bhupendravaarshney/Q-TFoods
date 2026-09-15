@@ -7,8 +7,8 @@ test('finance reporting and requester-to-manager support handoff are live and go
   test.setTimeout(180_000);
 
   await loginAndSelect(page, 'finance.user@qtfoods.local');
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /BI-REP/ }).click();
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="BI-REP"]').click();
   await expect(page.getByRole('heading', { name: 'Controlled Reports' })).toBeVisible();
   await expect(page.getByText(/Report runs never refresh in place/)).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
@@ -73,8 +73,8 @@ test('finance reporting and requester-to-manager support handoff are live and go
 });
 
 async function openHelp(page: Page): Promise<void> {
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /ADM-HELP/ }).click();
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="ADM-HELP"]').click();
   await expect(page.getByRole('heading', { name: 'Help & Support' })).toBeVisible();
 }
 

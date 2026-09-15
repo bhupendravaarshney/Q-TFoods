@@ -3,10 +3,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 test('manufacturing executes a planned batch through quality, packing, cost, genealogy, and recall', async ({ page }) => {
   test.setTimeout(420_000);
   await loginAndSelect(page, 'operations.user@qtfoods.local');
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
   const editor = page.locator('.requisition-editor');
 
-  await navigation.getByRole('button', { name: /PLAN-DEM/ }).click();
+  await navigation.locator('[data-screen-code="PLAN-DEM"]').click();
   await page.getByRole('button', { name: '+ New' }).click();
   await editor.getByLabel('Plan number').fill('E2E-MFG-DEMAND-001');
   await editor.getByLabel('Plan name').fill('E2E manufacturing execution demand');
@@ -20,7 +20,7 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
   await editor.getByRole('button', { name: 'Release to MRP' }).click();
   await expect(editor.getByRole('status')).toContainText('Demand released');
 
-  await navigation.getByRole('button', { name: /PLAN-MRP/ }).click();
+  await navigation.locator('[data-screen-code="PLAN-MRP"]').click();
   await page.getByRole('button', { name: '+ New' }).click();
   await editor.getByLabel('MRP run number').fill('E2E-MFG-MRP-001');
   await selectByText(editor.getByLabel('Released demand plan'), 'E2E-MFG-DEMAND-001');
@@ -28,7 +28,7 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
   await editor.getByRole('button', { name: 'Run MRP' }).click();
   await expect(editor.getByRole('status')).toContainText('MRP completed');
 
-  await navigation.getByRole('button', { name: /PLAN-SCH/ }).click();
+  await navigation.locator('[data-screen-code="PLAN-SCH"]').click();
   await page.getByRole('button', { name: '+ New' }).click();
   await selectByText(editor.getByLabel('Completed MRP run'), 'E2E-MFG-MRP-001');
   await editor.getByLabel('Schedule number').fill('E2E-MFG-SCH-001');
@@ -39,7 +39,7 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
   await editor.getByRole('button', { name: 'Release and reserve' }).click();
   await expect(editor.getByRole('status')).toContainText('reserved by FEFO');
 
-  await navigation.getByRole('button', { name: /PRO-ORDER/ }).click();
+  await navigation.locator('[data-screen-code="PRO-ORDER"]').click();
   await expect(page.getByRole('heading', { name: 'Production Orders' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await editor.getByLabel('Order number').fill('E2E-MFG-PRO-001');
@@ -53,7 +53,7 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
   await expect(editor.getByRole('status')).toContainText('Reserved material issued by FEFO');
   await expect(editor).toContainText('RM-APPLE-2609A');
 
-  await navigation.getByRole('button', { name: /PRO-STAGE/ }).click();
+  await navigation.locator('[data-screen-code="PRO-STAGE"]').click();
   await page.getByLabel('Stage Execution search').fill('E2E-MFG-PRO-001');
   for (const center of ['MIX-01', 'OVEN-01', 'PACK-01']) {
     await openRow(page, center);
@@ -65,7 +65,7 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
     await expect(editor.getByRole('status')).toContainText('Stage completed with actual time');
   }
 
-  await navigation.getByRole('button', { name: /PRO-LOSS/ }).click();
+  await navigation.locator('[data-screen-code="PRO-LOSS"]').click();
   await page.getByLabel('Yield / Loss / Rework search').fill('E2E-MFG-PRO-001');
   await openRow(page, 'E2E-MFG-PRO-001');
   await recordOutput(editor, 'GOOD', '95');
@@ -76,13 +76,13 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
   await expect(editor.getByRole('status')).toContainText('Rework recovered');
   await expect(editor).toContainText('97');
 
-  await navigation.getByRole('button', { name: /PRO-ORDER/ }).click();
+  await navigation.locator('[data-screen-code="PRO-ORDER"]').click();
   await page.getByLabel('Production Orders search').fill('E2E-MFG-PRO-001');
   await openRow(page, 'E2E-MFG-PRO-001');
   await editor.getByRole('button', { name: 'Complete order' }).click();
   await expect(editor.getByRole('status')).toContainText('Production order completed');
 
-  await navigation.getByRole('button', { name: /QC-LAB/ }).click();
+  await navigation.locator('[data-screen-code="QC-LAB"]').click();
   await page.getByRole('button', { name: '+ New' }).click();
   await editor.getByLabel('Sample number').fill('E2E-MFG-LAB-001');
   await selectByText(editor.getByLabel('Completed production order'), 'E2E-MFG-PRO-001');
@@ -95,7 +95,7 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
   await expect(editor.getByRole('status')).toContainText('Sample completed');
   await expect(editor.locator('.status').filter({ hasText: /^PASSED$/ })).toBeVisible();
 
-  await navigation.getByRole('button', { name: /QC-SAFE/ }).click();
+  await navigation.locator('[data-screen-code="QC-SAFE"]').click();
   await page.getByRole('button', { name: '+ New' }).click();
   await editor.getByLabel('Hold number').fill('E2E-MFG-HOLD-001');
   await selectByText(editor.getByLabel('Production batch for hold'), 'E2E-MFG-PRO-001');
@@ -109,7 +109,7 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
   await editor.getByRole('button', { name: 'Release batch quality' }).click();
   await expect(editor.getByRole('status')).toContainText('passed the lab');
 
-  await navigation.getByRole('button', { name: /PACK-ART/ }).click();
+  await navigation.locator('[data-screen-code="PACK-ART"]').click();
   await page.getByRole('button', { name: '+ New' }).click();
   await selectByText(editor.getByLabel('Artwork finished SKU'), 'SKU-APPLE-100');
   await editor.getByLabel('Artwork code').fill('E2E-MFG-ART-001');
@@ -120,7 +120,7 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
   await editor.getByRole('button', { name: 'Approve artwork' }).click();
   await expect(editor.getByRole('status')).toContainText('Artwork approved');
 
-  await navigation.getByRole('button', { name: /PACK-RUN/ }).click();
+  await navigation.locator('[data-screen-code="PACK-RUN"]').click();
   await page.getByRole('button', { name: '+ New' }).click();
   await editor.getByLabel('Run number').fill('E2E-MFG-PACK-001');
   await editor.getByLabel('Finished lot code').fill('E2E-MFG-FG-001');
@@ -133,13 +133,13 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
   await expect(editor.getByRole('status')).toContainText('finished stock and lot genealogy posted');
   await expect(editor).toContainText('RM-APPLE-2609A');
 
-  await navigation.getByRole('button', { name: /FG-LOT/ }).click();
+  await navigation.locator('[data-screen-code="FG-LOT"]').click();
   await page.getByLabel('Finished Goods search').fill('E2E-MFG-FG-001');
   await openRow(page, 'E2E-MFG-FG-001');
   await expect(editor).toContainText('97');
   await expect(editor).toContainText('RM-APPLE-2609A');
 
-  await navigation.getByRole('button', { name: /COST-BATCH/ }).click();
+  await navigation.locator('[data-screen-code="COST-BATCH"]').click();
   await page.getByRole('button', { name: '+ New' }).click();
   await editor.getByLabel('Cost number').fill('E2E-MFG-COST-001');
   await selectByText(editor.getByLabel('Cost production batch'), 'E2E-MFG-PRO-001');
@@ -151,7 +151,7 @@ test('manufacturing executes a planned batch through quality, packing, cost, gen
   await expect(editor).toContainText('Material usage variance');
   await expect(editor).toContainText('Stage time variance');
 
-  await navigation.getByRole('button', { name: /TRACE-CASE/ }).click();
+  await navigation.locator('[data-screen-code="TRACE-CASE"]').click();
   await selectByText(editor.getByLabel('Traceable lot'), 'RM-APPLE-2609A');
   await editor.getByRole('button', { name: 'Trace lot' }).click();
   await expect(editor.getByRole('status')).toContainText('Lot genealogy and customer exposure refreshed');

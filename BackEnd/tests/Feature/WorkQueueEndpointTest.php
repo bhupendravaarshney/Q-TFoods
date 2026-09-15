@@ -69,7 +69,7 @@ final class WorkQueueEndpointTest extends TestCase
             ->assertJsonPath('data.0.id', $exceptionId)
             ->assertJsonPath('data.0.kind', 'EXCEPTION')
             ->assertJsonPath('data.0.is_overdue', true)
-            ->assertJsonPath('data.0.assignee.name', 'Demo Finance Reviewer')
+            ->assertJsonPath('data.0.assignee.name', 'Demo Finance Manager')
             ->assertJsonPath('data.1.kind', 'APPROVAL')
             ->assertJsonPath('data.1.source.id', $approvalId)
             ->assertJsonPath('data.1.target.screen_code', 'RET-UNSOLD')

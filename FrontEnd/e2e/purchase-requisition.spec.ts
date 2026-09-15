@@ -12,8 +12,8 @@ test('Operations sources an approved requisition and controls its purchase order
   const requiredByDate = dateFromToday(30);
 
   await loginAndSelect(page, 'operations.user@qtfoods.local');
-  let navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /PUR-REQ/ }).click();
+  let navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="PUR-REQ"]').click();
   await expect(page.getByRole('heading', { name: 'Purchase Requisitions' })).toBeVisible();
 
   await page.getByRole('button', { name: '+ New' }).click();
@@ -36,24 +36,24 @@ test('Operations sources an approved requisition and controls its purchase order
   await page.getByRole('button', { name: 'Sign out' }).click();
 
   await loginAndSelect(page, 'finance.user@qtfoods.local');
-  navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /PUR-REQ/ }).click();
+  navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="PUR-REQ"]').click();
   await expect(page.getByRole('heading', { name: 'Requisition approval inbox' })).toBeVisible();
 
   const inbox = page.locator('.requisition-approval-inbox');
-  await expect(inbox.getByRole('button', { name: /E2E-REQ-001/ })).toBeVisible();
-  await inbox.getByRole('button', { name: /E2E-REQ-001/ }).click();
+  await expect(inbox.locator('[data-screen-code="E2E-REQ-001"]')).toBeVisible();
+  await inbox.locator('[data-screen-code="E2E-REQ-001"]').click();
   await editor.getByLabel('Approval reason').fill('Demand, budget, and required date confirmed.');
   await editor.getByRole('button', { name: 'Approve requisition' }).click();
   await expect(editor.getByRole('status')).toContainText('Purchase requisition approved');
   await expect(editor.locator('.status').filter({ hasText: /^APPROVED$/ })).toBeVisible();
-  await expect(editor).toContainText('Demo Finance Reviewer');
-  await expect(inbox.getByRole('button', { name: /E2E-REQ-001/ })).toHaveCount(0);
+  await expect(editor).toContainText('Demo Finance Manager');
+  await expect(inbox.locator('[data-screen-code="E2E-REQ-001"]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Sign out' }).click();
 
   await loginAndSelect(page, 'operations.user@qtfoods.local');
-  navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /PUR-RFQ/ }).click();
+  navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="PUR-RFQ"]').click();
   await expect(page.getByRole('heading', { name: 'RFQ & Supplier Comparison' })).toBeVisible();
 
   await page.getByRole('button', { name: '+ New' }).click();
@@ -83,7 +83,7 @@ test('Operations sources an approved requisition and controls its purchase order
   await expect(rfqEditor.locator('.detail-status .status').filter({ hasText: /^AWARDED$/ })).toBeVisible();
   await expect(rfqEditor).toContainText('Lowest compliant on-time offer');
 
-  await navigation.getByRole('button', { name: /PUR-PO/ }).click();
+  await navigation.locator('[data-screen-code="PUR-PO"]').click();
   await expect(page.getByRole('heading', { name: 'Purchase Orders' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   const orderEditor = page.locator('.requisition-editor');

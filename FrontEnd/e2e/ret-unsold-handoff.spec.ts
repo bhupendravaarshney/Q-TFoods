@@ -96,7 +96,7 @@ test('Sales, Operations, and Finance complete an unsold-return hand-off', async 
   });
   await expect(approvalWork).toBeVisible();
   await approvalWork.getByRole('button', { name: 'Claim' }).click();
-  await expect(approvalWork).toContainText('Demo Finance Reviewer');
+  await expect(approvalWork).toContainText('Demo Finance Manager');
   await approvalWork.getByRole('button', { name: 'Open' }).click();
   await expect(
     page.getByRole('heading', { name: 'Unsold Sales Return & Loss' })
@@ -190,9 +190,9 @@ async function loginAs(page: Page, email: string, openReturns = true): Promise<v
   }
 
   const navigation = page.getByRole('navigation', {
-    name: 'Authorised ERP modules',
+    name: 'Main menu',
   });
-  await navigation.getByRole('button', { name: /RET-UNSOLD/ }).click();
+  await navigation.locator('[data-screen-code="RET-UNSOLD"]').click();
   await expect(
     page.getByRole('heading', { name: 'Unsold Sales Return & Loss' })
   ).toBeVisible();

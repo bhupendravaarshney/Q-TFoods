@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 
 test('ERP Administrator versions approval policy and delegates scoped authority', async ({ page }) => {
   await loginAndSelect(page, 'admin.user@qtfoods.local');
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
 
-  await navigation.getByRole('button', { name: /ADM-RULE/ }).click();
+  await navigation.locator('[data-screen-code="ADM-RULE"]').click();
   await expect(page.getByRole('heading', { name: 'Approval Rules' })).toBeVisible();
   await expect(page.getByText('Server-authoritative approval policy')).toBeVisible();
 
@@ -27,7 +27,7 @@ test('ERP Administrator versions approval policy and delegates scoped authority'
   await expect(editor.getByText('PLANT · v2')).toBeVisible();
 
   await page.getByLabel('Delegator').selectOption({
-    label: 'Demo Finance Reviewer (finance.user@qtfoods.local)',
+    label: 'Demo Finance Manager (finance.user@qtfoods.local)',
   });
   await page.getByLabel('Delegate').selectOption({
     label: 'Demo Operations Manager (operations.user@qtfoods.local)',
@@ -40,7 +40,7 @@ test('ERP Administrator versions approval policy and delegates scoped authority'
   const delegation = page.locator('.delegation-table tbody tr').filter({
     hasText: 'E2E reviewer cover for the Training Plant.',
   });
-  await expect(delegation).toContainText('Demo Finance Reviewer');
+  await expect(delegation).toContainText('Demo Finance Manager');
   await expect(delegation).toContainText('Demo Operations Manager');
   await expect(delegation).toContainText('ACTIVE');
 
@@ -49,8 +49,8 @@ test('ERP Administrator versions approval policy and delegates scoped authority'
   await page.getByRole('button', { name: 'Sign out' }).click();
 
   await loginAndSelect(page, 'operations.user@qtfoods.local');
-  const operationsNavigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await operationsNavigation.getByRole('button', { name: /RET-UNSOLD/ }).click();
+  const operationsNavigation = page.getByRole('navigation', { name: 'Main menu' });
+  await operationsNavigation.locator('[data-screen-code="RET-UNSOLD"]').click();
   await expect(page.getByRole('heading', { name: 'Unsold Sales Return & Loss' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Loss disposition approval inbox' })).toBeVisible();
   await expect(page.getByText('No pending loss dispositions in this context.')).toBeVisible();

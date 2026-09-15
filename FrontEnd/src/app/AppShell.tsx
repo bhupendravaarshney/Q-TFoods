@@ -5,15 +5,16 @@ import { ErpSessionContext } from './ErpSessionContext';
 import { pageMap } from './pageMap';
 import { AccountSecurityPanel } from '../components/AccountSecurityPanel';
 import { useKeyboardScrollableRegions } from './useKeyboardScrollableRegions';
+import { roleLabel, screenLabel } from '../utils/displayText';
 
-const areaOrder = [
-  'Foundation / Admin',
-  'Master / Procurement / Stock',
-  'Manufacturing / Quality',
-  'Sales / Dispatch',
-  'Finance / Support',
-  'Scale',
-  'Finance Supplement',
+const navigationSections = [
+  { key: 'Foundation / Admin', label: 'Home & Administration' },
+  { key: 'Master / Procurement / Stock', label: 'Purchasing & Inventory' },
+  { key: 'Manufacturing / Quality', label: 'Production & Quality' },
+  { key: 'Sales / Dispatch', label: 'Sales & Delivery' },
+  { key: 'Finance / Support', label: 'Finance & People' },
+  { key: 'Scale', label: 'Multi-Plant & Planning' },
+  { key: 'Finance Supplement', label: 'Finance Tools' },
 ];
 
 type AppShellProps = {
@@ -32,6 +33,9 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
   const defaultCode = allowedScreens.has('WRK-HOME') ? 'WRK-HOME' : navigation[0]?.code;
   const [screenCode, setScreenCode] = useState(defaultCode ?? '');
   const [search, setSearch] = useState('');
+  const [expandedAreas, setExpandedAreas] = useState<Set<string>>(
+    () => new Set(navigationSections.map(({ key }) => key))
+  );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [compactNavigation, setCompactNavigation] = useState(() => window.matchMedia('(max-width: 820px)').matches);
@@ -105,10 +109,16 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
   const current = navigation.find((screen) => screen.code === screenCode);
   const CurrentPage = current ? pageMap[current.code as keyof typeof pageMap] : null;
 
+  useEffect(() => {
+    if (!current?.area) return;
+    const area = current.area;
+    setExpandedAreas((areas) => areas.has(area) ? areas : new Set([...areas, area]));
+  }, [current?.area]);
+
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return navigation.filter((screen) =>
-      !query || `${screen.code} ${screen.title} ${screen.description}`.toLowerCase().includes(query)
+      !query || `${screenLabel(screen.code, screen.title)} ${screen.description}`.toLowerCase().includes(query)
     );
   }, [navigation, search]);
 
@@ -116,6 +126,15 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
     if (!allowedScreens.has(code)) return;
     window.location.hash = code;
     setSidebarOpen(false);
+  }
+
+  function toggleArea(area: string) {
+    setExpandedAreas((areas) => {
+      const next = new Set(areas);
+      if (next.has(area)) next.delete(area);
+      else next.add(area);
+      return next;
+    });
   }
 
   const context = session.selected_context;
@@ -141,27 +160,30 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
       >
         <div className="side-brand">
           <span className="brand-mark">Q&T</span>
-          <div><b>Q & T FOODS LTD</b><small>ERP + CRM</small></div>
+          <div><b>Q & T FOODS LTD</b><small>Business workspace</small></div>
         </div>
         <div className="side-search">
-          <input ref={sidebarSearchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search my modules" aria-label="Search authorised modules" />
+          <input ref={sidebarSearchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search menu" aria-label="Search menu" />
         </div>
-        <nav aria-label="Authorised ERP modules">
-          {areaOrder.map((area) => {
-            const items = filtered.filter((screen) => screen.area === area);
+        <nav aria-label="Main menu">
+          {navigationSections.map(({ key, label }) => {
+            const items = filtered.filter((screen) => screen.area === key);
             if (!items.length) return null;
+            const expanded = Boolean(search.trim()) || expandedAreas.has(key);
             return (
-              <section key={area} className="nav-group">
-                <h4>{area}</h4>
-                {items.map((item) => (
-                  <button key={item.code} className={item.code === current?.code ? 'active' : ''} aria-current={item.code === current?.code ? 'page' : undefined} onClick={() => go(item.code)}>
-                    <small>{item.code}</small><span>{item.title}</span>
+              <section key={key} className="nav-group">
+                <button className="nav-group-toggle" type="button" aria-expanded={expanded} onClick={() => toggleArea(key)}>
+                  <span>{label}</span><small>{items.length}</small><i aria-hidden="true">{expanded ? '−' : '+'}</i>
+                </button>
+                {expanded && <div className="nav-group-items">{items.map((item) => (
+                  <button key={item.code} data-screen-code={item.code} aria-label={screenLabel(item.code, item.title)} className={item.code === current?.code ? 'active' : ''} aria-current={item.code === current?.code ? 'page' : undefined} onClick={() => go(item.code)}>
+                    <span>{screenLabel(item.code, item.title)}</span>
                   </button>
-                ))}
+                ))}</div>}
               </section>
             );
           })}
-          {!filtered.length && <div className="nav-empty">No authorised module matches your search.</div>}
+          {!filtered.length && <div className="nav-empty">No menu item matches your search.</div>}
         </nav>
         <div className="side-user">
           <span className="avatar">{initials(session.user.name)}</span>
@@ -183,15 +205,14 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
             aria-expanded={sidebarOpen}
             onClick={() => sidebarOpen ? closeSidebar() : setSidebarOpen(true)}
           >☰</button>
-          <button className="context-button" type="button" onClick={onChooseContext}>
+          <button className="context-button" type="button" aria-label="Change company or plant" onClick={onChooseContext}>
             <i></i>
             <span><b>{context?.company_name}</b><small>{context?.plant_name ?? 'All plants'} · {primaryRole}</small></span>
             ⌄
           </button>
           <div className="spacer"></div>
-          <span className="prototype-pill role-pill">ROLE-SCOPED SESSION</span>
-          <button ref={securityButtonRef} className="security-button" type="button" aria-label="Account security" aria-haspopup="dialog" aria-controls="account-security-dialog" aria-expanded={securityOpen} onClick={() => setSecurityOpen(true)}><span>Security</span><b>{session.security?.mfa_enabled ? 'MFA ON' : 'MFA OFF'}</b></button>
-          {allowedScreens.has('ADM-HELP') && <button className="icon" aria-label="Open help" onClick={() => go('ADM-HELP')}>?</button>}
+          <button ref={securityButtonRef} className="security-button" type="button" aria-label="Account security" aria-haspopup="dialog" aria-controls="account-security-dialog" aria-expanded={securityOpen} onClick={() => setSecurityOpen(true)}><span>My account</span><b>{session.security?.mfa_enabled ? '2-step on' : '2-step off'}</b></button>
+          {allowedScreens.has('ADM-HELP') && <button className="icon" type="button" aria-label="Open help" title="Help" onClick={() => go('ADM-HELP')}>?</button>}
         </header>
 
         <main ref={mainContentRef} id="erp-main-content" className="content" tabIndex={-1}>
@@ -209,8 +230,4 @@ export default function AppShell({ session, onChooseContext, onLogout }: AppShel
 
 function initials(name: string): string {
   return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
-}
-
-function roleLabel(role: string): string {
-  return role.toLowerCase().split('_').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
 }

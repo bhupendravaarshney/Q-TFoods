@@ -3,8 +3,8 @@ import { expect, test, type Page } from '@playwright/test';
 
 test('named user changes password, enables TOTP, and signs in with both factors', async ({ page }) => {
   await loginAndSelect(page, 'admin.user@qtfoods.local', 'prototype');
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /ADM-USER/ }).click();
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="ADM-USER"]').click();
   await page.getByRole('button', { name: '+ New' }).click();
   await page.getByRole('button', { name: 'Direct account' }).click();
   await page.getByLabel('Name').fill('E2E Security Administrator');

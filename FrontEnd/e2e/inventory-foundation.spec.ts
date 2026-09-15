@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 
 test('Operations Manager governs stock ownership, lots, and reservations', async ({ page }) => {
   await loginAndSelect(page);
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /INV-STK/ }).click();
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="INV-STK"]').click();
   await expect(page.getByRole('heading', { name: 'Stock, Lots & Ownership' })).toBeVisible();
 
   const stockTable = page.locator('.inventory-table');

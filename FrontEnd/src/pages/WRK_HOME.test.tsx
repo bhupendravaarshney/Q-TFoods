@@ -48,7 +48,7 @@ describe('WRK_HOME', () => {
       ...openTask,
       assignee: {
         id: '00000000-0000-4000-8000-000000000203',
-        name: 'Demo Finance Reviewer',
+        name: 'Demo Finance Manager',
         email: 'finance.user@qtfoods.local',
       },
       record_version: 2,
@@ -77,7 +77,7 @@ describe('WRK_HOME', () => {
         expect.any(String)
       );
     });
-    expect(await screen.findByText('Demo Finance Reviewer')).toBeInTheDocument();
+    expect(await screen.findByText('Demo Finance Manager')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('is now assigned to you');
     expect(screen.getByRole('button', { name: 'Complete' })).toBeEnabled();
   });
@@ -87,7 +87,7 @@ describe('WRK_HOME', () => {
       ...makeTask(),
       assignee: {
         id: '00000000-0000-4000-8000-000000000203',
-        name: 'Demo Finance Reviewer',
+        name: 'Demo Finance Manager',
         email: 'finance.user@qtfoods.local',
       },
       allowed_actions: ['COMPLETE'] as WorkItem['allowed_actions'],

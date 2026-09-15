@@ -1,3 +1,5 @@
+import { statusLabel } from '../utils/displayText';
+
 export function StatusBadge({ status }: { status: string }) {
   const key = status.toLowerCase();
   const tone =
@@ -6,5 +8,5 @@ export function StatusBadge({ status }: { status: string }) {
     key.includes('pending') || key.includes('review') || key.includes('progress') || key.includes('preview') || key.includes('provisional') || key.includes('retry') || key.includes('processing') || key === 'draft' ? 'warn' :
     'info';
 
-  return <span className={`status status-${tone}`}>{status}</span>;
+  return <span className={`status status-${tone}`}>{statusLabel(status)}</span>;
 }

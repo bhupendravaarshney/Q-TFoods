@@ -218,7 +218,7 @@ async function openP2Module(page: Page, code: string, heading: string): Promise<
 }
 
 async function openModule(page: Page, code: string, heading: string): Promise<void> {
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
   await navigation.getByRole('button', { name: new RegExp(code) }).click();
   await expect(page.getByRole('heading', { name: heading })).toBeVisible();
 }

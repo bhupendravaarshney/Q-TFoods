@@ -11,8 +11,8 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
   await loginAndSelect(page, 'operations.user@qtfoods.local');
   const { purchaseOrderId, purchaseOrderLineId } = await createIssuedPurchaseOrder(page);
 
-  let navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /INB-GATE/ }).click();
+  let navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="INB-GATE"]').click();
   await expect(page.getByRole('heading', { name: 'Gate Entry' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   const editor = page.locator('.requisition-editor');
@@ -24,7 +24,7 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
   await editor.getByRole('button', { name: 'Record arrival' }).click();
   await expect(editor.getByRole('status')).toContainText('Vehicle arrival recorded');
 
-  await navigation.getByRole('button', { name: /INB-GRN/ }).click();
+  await navigation.locator('[data-screen-code="INB-GRN"]').click();
   await expect(page.getByRole('heading', { name: 'GRN / Partial Receipt' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await selectByText(editor.getByLabel('Arrived gate entry'), 'E2E-P2P-GATE-001');
@@ -37,7 +37,7 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
   await expect(editor.getByRole('status')).toContainText('GRN posted to Quality Hold');
   await expect(editor).toContainText('Incoming QC');
 
-  await navigation.getByRole('button', { name: /QC-IN/ }).click();
+  await navigation.locator('[data-screen-code="QC-IN"]').click();
   await expect(page.getByRole('heading', { name: 'Incoming QC' })).toBeVisible();
   const qcRow = page.locator('.requisition-table tbody tr').filter({ hasText: 'E2E-P2P-GRN-001' });
   await qcRow.getByRole('button', { name: 'Open' }).click();
@@ -48,7 +48,7 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
   await editor.getByRole('button', { name: 'Complete incoming QC' }).click();
   await expect(editor.getByRole('status')).toContainText('accepted/rejected stock posted');
 
-  await navigation.getByRole('button', { name: /INB-RETURN/ }).click();
+  await navigation.locator('[data-screen-code="INB-RETURN"]').click();
   await expect(page.getByRole('heading', { name: 'Supplier Returns' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await selectByText(editor.getByLabel('Rejected QC lot'), 'LOT-E2E-P2P-001');
@@ -61,8 +61,8 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
 
   await logout(page);
   await loginAndSelect(page, 'finance.user@qtfoods.local');
-  navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /FIN-AP/ }).click();
+  navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="FIN-AP"]').click();
   await expect(page.getByRole('heading', { name: 'Accounts Payable' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await selectByText(editor.getByLabel('Issued purchase order'), 'E2E-P2P-PO-001');
@@ -81,8 +81,8 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
 
   await logout(page);
   await loginAndSelect(page, 'admin.user@qtfoods.local');
-  navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /FIN-AP/ }).click();
+  navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="FIN-AP"]').click();
   await page.getByLabel('Search', { exact: true }).fill('E2E-P2P-AP-001');
   await openRow(page, 'E2E-P2P-AP-001');
   await editor.getByRole('button', { name: 'Approve invoice' }).click();
@@ -90,8 +90,8 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
 
   await logout(page);
   await loginAndSelect(page, 'finance.user@qtfoods.local');
-  navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /FIN-AP/ }).click();
+  navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="FIN-AP"]').click();
   await page.getByRole('button', { name: 'Payment proposals' }).click();
   await page.getByRole('button', { name: '+ New' }).click();
   await selectByText(editor.getByLabel('Approved invoice'), 'E2E-P2P-AP-001');
@@ -103,8 +103,8 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
 
   await logout(page);
   await loginAndSelect(page, 'admin.user@qtfoods.local');
-  navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /FIN-AP/ }).click();
+  navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="FIN-AP"]').click();
   await page.getByRole('button', { name: 'Payment proposals' }).click();
   await page.getByLabel('Search', { exact: true }).fill('E2E-P2P-PROP-001');
   await openRow(page, 'E2E-P2P-PROP-001');
@@ -113,8 +113,8 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
 
   await logout(page);
   await loginAndSelect(page, 'finance.user@qtfoods.local');
-  navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /FIN-AP/ }).click();
+  navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="FIN-AP"]').click();
   await page.getByRole('button', { name: 'Payment proposals' }).click();
   await page.getByLabel('Search', { exact: true }).fill('E2E-P2P-PROP-001');
   await openRow(page, 'E2E-P2P-PROP-001');

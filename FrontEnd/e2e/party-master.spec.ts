@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 
 test('Operations Manager creates, updates, and places a complete customer party on hold', async ({ page }) => {
   await loginAndSelect(page);
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
 
-  await navigation.getByRole('button', { name: /MD-PARTY/ }).click();
+  await navigation.locator('[data-screen-code="MD-PARTY"]').click();
   await expect(page.getByRole('heading', { name: 'Party Master' })).toBeVisible();
   await expect(page.getByText('Controlled party aggregate')).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();

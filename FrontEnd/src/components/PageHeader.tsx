@@ -1,6 +1,5 @@
 export function PageHeader({
   code,
-  batch,
   title,
   description,
   onNew,
@@ -16,9 +15,8 @@ export function PageHeader({
   onExport?: () => void;
 }) {
   return (
-    <div className="page-head">
+    <div className="page-head" data-screen-code={code}>
       <div>
-        <div className="crumb">{code} · {batch}</div>
         <h1>{title}</h1>
         <p>{description}</p>
       </div>

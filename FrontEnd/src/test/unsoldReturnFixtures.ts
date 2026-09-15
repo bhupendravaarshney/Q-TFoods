@@ -39,7 +39,7 @@ export function makeSession(actions: string[]): ErpSession {
   return {
     user: {
       id: '00000000-0000-4000-8000-000000000203',
-      name: 'Demo Finance Reviewer',
+      name: 'Demo Finance Manager',
       email: 'finance.user@qtfoods.local',
     },
     roles: ['FINANCE_REVIEWER'],

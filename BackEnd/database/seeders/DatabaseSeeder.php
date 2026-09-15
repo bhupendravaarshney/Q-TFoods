@@ -51,7 +51,7 @@ final class DatabaseSeeder extends Seeder
             $users = [
                 'sales' => ['00000000-0000-4000-8000-000000000201', 'demo.user@qtfoods.local', 'Demo Sales Manager'],
                 'operations' => ['00000000-0000-4000-8000-000000000202', 'operations.user@qtfoods.local', 'Demo Operations Manager'],
-                'finance' => ['00000000-0000-4000-8000-000000000203', 'finance.user@qtfoods.local', 'Demo Finance Reviewer'],
+                'finance' => ['00000000-0000-4000-8000-000000000203', 'finance.user@qtfoods.local', 'Demo Finance Manager'],
                 'admin' => ['00000000-0000-4000-8000-000000000204', 'admin.user@qtfoods.local', 'Demo ERP Administrator'],
                 'partner' => ['00000000-0000-4000-8000-000000000205', 'partner.user@qtfoods.local', 'North Market Portal User'],
             ];
@@ -75,19 +75,19 @@ final class DatabaseSeeder extends Seeder
             }
 
             $roles = [
-                'SALES_MANAGER' => ['00000000-0000-4000-8000-000000000301', 'Sales Manager'],
-                'OPERATIONS_MANAGER' => ['00000000-0000-4000-8000-000000000302', 'Operations Manager'],
-                'FINANCE_REVIEWER' => ['00000000-0000-4000-8000-000000000303', 'Finance Reviewer'],
-                'ERP_ADMIN' => ['00000000-0000-4000-8000-000000000304', 'ERP Administrator'],
-                'PARTNER_PORTAL' => ['00000000-0000-4000-8000-000000000305', 'Partner Portal User'],
+                'SALES_MANAGER' => ['00000000-0000-4000-8000-000000000301', 'Sales Manager', 'Customer, pricing, order, delivery, claim, and receivable work.'],
+                'OPERATIONS_MANAGER' => ['00000000-0000-4000-8000-000000000302', 'Operations Manager', 'Purchasing, stock, production, quality, packing, maintenance, and warehouse work.'],
+                'FINANCE_REVIEWER' => ['00000000-0000-4000-8000-000000000303', 'Finance Manager', 'Approvals, supplier and customer accounts, accounting, payroll, reporting, and finance controls.'],
+                'ERP_ADMIN' => ['00000000-0000-4000-8000-000000000304', 'ERP Administrator', 'Organisation setup, users, roles, controls, support, and full-system administration.'],
+                'PARTNER_PORTAL' => ['00000000-0000-4000-8000-000000000305', 'Partner User', 'Access only to records and documents explicitly shared with the assigned customer.'],
             ];
 
-            foreach ($roles as $code => [$id, $name]) {
+            foreach ($roles as $code => [$id, $name, $description]) {
                 DB::table('roles')->updateOrInsert(['id' => $id], [
                     'code' => $code,
                     'name' => $name,
                     'company_id' => null,
-                    'description' => null,
+                    'description' => $description,
                     'status' => 'ACTIVE',
                     'is_system' => true,
                     'record_version' => 1,

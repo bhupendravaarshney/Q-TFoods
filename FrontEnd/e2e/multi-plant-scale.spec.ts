@@ -72,8 +72,8 @@ type TransferDetail = {
 };
 
 async function openScale(page: Page): Promise<void> {
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /SCALE-PLANT/ }).click();
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="SCALE-PLANT"]').click();
   await expect(page.getByRole('heading', { name: 'Multi-Plant Control' })).toBeVisible();
   await expect(page.locator('.p2-live-notice')).toBeVisible();
 }

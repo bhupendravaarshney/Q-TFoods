@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 
 test('ERP Administrator traces a scoped change through audit evidence and outbox delivery', async ({ page }) => {
   await loginAndSelect(page);
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
 
-  await navigation.getByRole('button', { name: /ADM-LOC/ }).click();
+  await navigation.locator('[data-screen-code="ADM-LOC"]').click();
   await expect(page.getByRole('heading', { name: 'Plant Locations' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   const editor = page.locator('.admin-editor');
@@ -14,7 +14,7 @@ test('ERP Administrator traces a scoped change through audit evidence and outbox
   await editor.getByRole('button', { name: 'Create location' }).click();
   await expect(page.getByRole('status')).toContainText('CTRL-AUDIT was created');
 
-  await navigation.getByRole('button', { name: /ADM-AUD/ }).click();
+  await navigation.locator('[data-screen-code="ADM-AUD"]').click();
   await expect(page.getByRole('heading', { name: 'Audit & Evidence' })).toBeVisible();
   await page.getByLabel('Search audit').fill('CREATE_LOCATION');
   await page.getByRole('button', { name: 'Search' }).click();
@@ -23,7 +23,7 @@ test('ERP Administrator traces a scoped change through audit evidence and outbox
   await auditRow.getByRole('button', { name: 'Open' }).click();
   await expect(page.locator('.control-detail .json-view')).toContainText('CTRL-AUDIT');
 
-  await navigation.getByRole('button', { name: /ADM-INT/ }).click();
+  await navigation.locator('[data-screen-code="ADM-INT"]').click();
   await expect(page.getByRole('heading', { name: 'Integration Operations' })).toBeVisible();
   await page.getByLabel('Search outbox').fill('foundation.location.created');
   await page.getByRole('button', { name: 'Search' }).click();

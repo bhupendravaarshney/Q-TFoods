@@ -147,22 +147,22 @@ export default function ACC_LOGIN({
   return (
     <div className="auth-page auth-full-page">
       <section className="auth-brand">
-        <div className="brand-lockup"><span className="brand-mark">Q&T</span><div><b>Q & T FOODS LTD</b><small>Manufacturing ERP + CRM</small></div></div>
+        <div className="brand-lockup"><span className="brand-mark">Q&T</span><div><b>Q & T FOODS LTD</b><small>Business management</small></div></div>
         <div>
-          <div className="eyebrow light">SECURE OPERATIONS</div>
-          <h1>One ERP.<br />The right work.</h1>
-          <p>Named identity, verified email, two-step protection, revocable devices, and company/plant-scoped authority.</p>
+          <div className="eyebrow light">YOUR WORKSPACE</div>
+          <h1>The right work.<br />For the right people.</h1>
+          <p>Sign in to see only the companies, locations, and work assigned to your role.</p>
         </div>
-        <small>Verified identity · protected sessions · controlled workflow</small>
+        <small>Secure sign-in · protected account · role-based access</small>
       </section>
       <section className="auth-form">
         {flow === 'signin' && (
           <form className="auth-card" onSubmit={submitSignIn}>
-            <div className="eyebrow">ACC-LOGIN</div>
+            <div className="eyebrow">SECURE SIGN IN</div>
             <h2>{mfaChallenge ? 'Two-step verification' : 'Welcome back'}</h2>
             <p className="auth-intro">{mfaChallenge
               ? `Enter an authenticator or recovery code. Challenge expires ${new Date(mfaChallenge.expires_at).toLocaleTimeString()}.`
-              : 'Use a verified named account to enter the ERP workflow.'}</p>
+              : 'Use your work account to open your assigned workspace.'}</p>
 
             {(error || localError) && (
               <div className="form-error" role="alert">
@@ -189,7 +189,7 @@ export default function ACC_LOGIN({
               </div>
 
               <div className="demo-accounts">
-                <span>Demo roles · password: <b>prototype</b></span>
+                <span>Try a demo role · password: <b>prototype</b></span>
                 <div>{demoAccounts.map(([label, account]) => (
                   <button type="button" key={account} className={email === account ? 'selected' : ''} onClick={() => setEmail(account)}>{label}</button>
                 ))}</div>
@@ -214,7 +214,7 @@ export default function ACC_LOGIN({
 
         {(flow === 'invite' || flow === 'reset' || flow === 'verify') && (
           <form className="auth-card" onSubmit={submitCompletion}>
-            <div className="eyebrow">IDENTITY LIFECYCLE</div>
+            <div className="eyebrow">ACCOUNT SETUP</div>
             <h2>{flow === 'invite' ? 'Accept invitation' : flow === 'reset' ? 'Choose a new password' : 'Verify your email'}</h2>
             {localError && <div className="form-error" role="alert"><span>{localError}</span></div>}
             {flow === 'invite' && invitation && <div className="identity-summary"><b>{invitation.name}</b><span>{invitation.email}</span><small>{invitation.company_name} · {invitation.plant_name}</small></div>}

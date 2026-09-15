@@ -2,9 +2,9 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 test('Operations Manager builds a governed product master from brand through quality specification', async ({ page }) => {
   await loginAndSelect(page);
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
 
-  await navigation.getByRole('button', { name: /MD-BRAND/ }).click();
+  await navigation.locator('[data-screen-code="MD-BRAND"]').click();
   await expect(page.getByRole('heading', { name: 'Brands & Agreements' })).toBeVisible();
   let editor = page.locator('.product-master-editor');
   await page.getByRole('button', { name: '+ New' }).click();
@@ -18,7 +18,7 @@ test('Operations Manager builds a governed product master from brand through qua
   await editor.getByRole('button', { name: 'Create brand' }).click();
   await expectSuccess(editor, 'E2E-BRAND was created as ACTIVE');
 
-  await navigation.getByRole('button', { name: /MD-ITEM/ }).click();
+  await navigation.locator('[data-screen-code="MD-ITEM"]').click();
   await expect(page.getByRole('heading', { name: 'Items & UOM' })).toBeVisible();
   editor = page.locator('.product-master-editor');
   await page.getByRole('button', { name: '+ New' }).click();
@@ -34,7 +34,7 @@ test('Operations Manager builds a governed product master from brand through qua
   await editor.getByRole('button', { name: 'Create item' }).click();
   await expectSuccess(editor, 'E2E-ITEM was created as ACTIVE');
 
-  await navigation.getByRole('button', { name: /MD-SKU/ }).click();
+  await navigation.locator('[data-screen-code="MD-SKU"]').click();
   await expect(page.getByRole('heading', { name: 'SKUs & Packs' })).toBeVisible();
   editor = page.locator('.product-master-editor');
   await page.getByRole('button', { name: '+ New' }).click();
@@ -49,7 +49,7 @@ test('Operations Manager builds a governed product master from brand through qua
   await editor.getByRole('button', { name: 'Create SKU' }).click();
   await expectSuccess(editor, 'E2E-SKU was created as ACTIVE');
 
-  await navigation.getByRole('button', { name: /MD-REC/ }).click();
+  await navigation.locator('[data-screen-code="MD-REC"]').click();
   await expect(page.getByRole('heading', { name: 'Recipes / BOM' })).toBeVisible();
   editor = page.locator('.product-master-editor');
   await page.getByRole('button', { name: '+ New' }).click();
@@ -65,7 +65,7 @@ test('Operations Manager builds a governed product master from brand through qua
   await editor.getByRole('button', { name: 'Create recipe' }).click();
   await expectSuccess(editor, 'E2E-RECIPE was created as ACTIVE');
 
-  await navigation.getByRole('button', { name: /MD-ROUTE/ }).click();
+  await navigation.locator('[data-screen-code="MD-ROUTE"]').click();
   await expect(page.getByRole('heading', { name: 'Production Routes' })).toBeVisible();
   editor = page.locator('.product-master-editor');
   await page.getByRole('button', { name: '+ New' }).click();
@@ -81,7 +81,7 @@ test('Operations Manager builds a governed product master from brand through qua
   await editor.getByRole('button', { name: 'Create route' }).click();
   await expectSuccess(editor, 'E2E-ROUTE was created as ACTIVE');
 
-  await navigation.getByRole('button', { name: /MD-SPEC/ }).click();
+  await navigation.locator('[data-screen-code="MD-SPEC"]').click();
   await expect(page.getByRole('heading', { name: 'Quality Standards' })).toBeVisible();
   editor = page.locator('.product-master-editor');
   await page.getByRole('button', { name: '+ New' }).click();

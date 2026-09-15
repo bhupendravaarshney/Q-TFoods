@@ -1,4 +1,5 @@
 import type { ErpSession } from '../types/session';
+import { roleLabel } from '../utils/displayText';
 
 type ContextProps = {
   session?: ErpSession;
@@ -15,14 +16,14 @@ export default function ACC_CTX({ session, onSelect, onCancel, onLogout, busy = 
   return (
     <div className="context-flow">
       <header className="context-flow-header">
-        <div className="brand-lockup dark"><span className="brand-mark">Q&T</span><div><b>Q & T FOODS LTD</b><small>ERP + CRM</small></div></div>
+        <div className="brand-lockup dark"><span className="brand-mark">Q&T</span><div><b>Q & T FOODS LTD</b><small>Business workspace</small></div></div>
         <button className="secondary" type="button" onClick={() => void onLogout?.()} disabled={busy}>Sign out</button>
       </header>
 
       <main className="context-flow-main">
-        <div className="eyebrow">ACC-CTX · AUTHORISED SCOPE</div>
+        <div className="eyebrow">CHOOSE YOUR WORKSPACE</div>
         <h1>Choose where you are working</h1>
-        <p>Every query, transaction, approval, and audit event will be constrained to this company and plant.</p>
+        <p>You will only see the work assigned to your role for the company and plant you choose.</p>
 
         <div className="session-summary">
           <span className="avatar">{initials(session.user.name)}</span>
@@ -43,10 +44,10 @@ export default function ACC_CTX({ session, onSelect, onCancel, onLogout, busy = 
                 onClick={() => void onSelect?.(context.company_id, context.plant_id)}
                 disabled={busy}
               >
-                <span className="context-status">{selected ? 'Current context' : 'Authorised context'}</span>
+                <span className="context-status">{selected ? 'Current' : 'Available'}</span>
                 <b>{context.plant_name ?? 'All plants'}</b>
                 <span>{context.company_name}</span>
-                <small>{busy ? 'Please wait…' : 'Open ERP workspace →'}</small>
+                <small>{busy ? 'Please wait…' : 'Open workspace →'}</small>
               </button>
             );
           })}
@@ -62,8 +63,4 @@ export default function ACC_CTX({ session, onSelect, onCancel, onLogout, busy = 
 
 function initials(name: string): string {
   return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
-}
-
-function roleLabel(role: string): string {
-  return role.toLowerCase().split('_').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
 }

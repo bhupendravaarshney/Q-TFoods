@@ -58,8 +58,8 @@ test('partner portal publishes into one customer tenant and records receipt with
 });
 
 async function openPortal(page: Page): Promise<void> {
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await navigation.getByRole('button', { name: /PORTAL-EXT/ }).click();
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await navigation.locator('[data-screen-code="PORTAL-EXT"]').click();
   await expect(page.getByRole('heading', { name: 'Partner Portal' })).toBeVisible();
   await expect(page.locator('.p2-live-notice')).toBeVisible();
 }

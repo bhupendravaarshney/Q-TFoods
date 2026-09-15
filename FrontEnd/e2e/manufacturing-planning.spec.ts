@@ -3,10 +3,10 @@ import { expect, test, type Page } from '@playwright/test';
 test('manufacturing planning releases demand, runs MRP, schedules capacity, and reserves material', async ({ page }) => {
   test.setTimeout(150_000);
   await loginAndSelect(page, 'operations.user@qtfoods.local');
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
   const editor = page.locator('.requisition-editor');
 
-  await navigation.getByRole('button', { name: /PLAN-DEM/ }).click();
+  await navigation.locator('[data-screen-code="PLAN-DEM"]').click();
   await expect(page.getByRole('heading', { name: 'Demand Planning' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await editor.getByLabel('Plan number').fill('E2E-PLAN-DEMAND-001');
@@ -22,7 +22,7 @@ test('manufacturing planning releases demand, runs MRP, schedules capacity, and 
   await expect(editor.getByRole('status')).toContainText('Demand released to MRP');
   await expect(editor.locator('.status').filter({ hasText: /^RELEASED$/ })).toBeVisible();
 
-  await navigation.getByRole('button', { name: /PLAN-MRP/ }).click();
+  await navigation.locator('[data-screen-code="PLAN-MRP"]').click();
   await expect(page.getByRole('heading', { name: 'Material Requirements Planning' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await editor.getByLabel('MRP run number').fill('E2E-PLAN-MRP-001');
@@ -33,7 +33,7 @@ test('manufacturing planning releases demand, runs MRP, schedules capacity, and 
   await expect(editor).toContainText('10.304569 KG');
   await expect(editor).toContainText('SKU-APPLE-BASE');
 
-  await navigation.getByRole('button', { name: /PLAN-SCH/ }).click();
+  await navigation.locator('[data-screen-code="PLAN-SCH"]').click();
   await expect(page.getByRole('heading', { name: 'Production Schedule' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await selectByText(editor.getByLabel('Completed MRP run'), 'E2E-PLAN-MRP-001');
@@ -56,14 +56,14 @@ test('manufacturing planning releases demand, runs MRP, schedules capacity, and 
   await expect(editor.locator('.status').filter({ hasText: /^CANCELLED$/ })).toBeVisible();
   await expect(editor).toContainText('RELEASED');
 
-  await navigation.getByRole('button', { name: /PLAN-MRP/ }).click();
+  await navigation.locator('[data-screen-code="PLAN-MRP"]').click();
   await page.getByLabel('Search', { exact: true }).fill('E2E-PLAN-MRP-001');
   await openRow(page, 'E2E-PLAN-MRP-001');
   page.once('dialog', (dialog) => dialog.accept('E2E schedule was cancelled after verification.'));
   await editor.getByRole('button', { name: 'Cancel MRP run' }).click();
   await expect(editor.getByRole('status')).toContainText('MRP run cancelled');
 
-  await navigation.getByRole('button', { name: /PLAN-DEM/ }).click();
+  await navigation.locator('[data-screen-code="PLAN-DEM"]').click();
   await page.getByLabel('Search', { exact: true }).fill('E2E-PLAN-DEMAND-001');
   await openRow(page, 'E2E-PLAN-DEMAND-001');
   page.once('dialog', (dialog) => dialog.accept('E2E demand horizon closed after verification.'));

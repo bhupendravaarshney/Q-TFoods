@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 
 test('ERP Administrator provisions plant foundation data and effective user authority', async ({ page }) => {
   await login(page, 'admin.user@qtfoods.local', 'prototype');
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
 
-  await navigation.getByRole('button', { name: /ADM-ORG/ }).click();
+  await navigation.locator('[data-screen-code="ADM-ORG"]').click();
   await expect(page.getByRole('heading', { name: 'Organisation & Plants' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await page.getByLabel('Plant code').fill('E2E-PLANT');
@@ -13,7 +13,7 @@ test('ERP Administrator provisions plant foundation data and effective user auth
   await expect(page.getByRole('status')).toContainText('Plant created');
   await expect(page.getByText('E2E Pilot Plant', { exact: true })).toBeVisible();
 
-  await navigation.getByRole('button', { name: /ADM-LOC/ }).click();
+  await navigation.locator('[data-screen-code="ADM-LOC"]').click();
   await expect(page.getByRole('heading', { name: 'Plant Locations' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await page.getByLabel('Location code').fill('E2E-BULK');
@@ -30,7 +30,7 @@ test('ERP Administrator provisions plant foundation data and effective user auth
   await expect(page.getByRole('status')).toContainText('saved with a new record version');
   await expect(locationRow).toContainText('E2E Bulk Warehouse');
 
-  await navigation.getByRole('button', { name: /ADM-ROLE/ }).click();
+  await navigation.locator('[data-screen-code="ADM-ROLE"]').click();
   await expect(page.getByRole('heading', { name: 'Roles & Permissions' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await page.getByLabel('Code').fill('E2E_LOCATION_AUDITOR');
@@ -45,7 +45,7 @@ test('ERP Administrator provisions plant foundation data and effective user auth
   await page.getByRole('button', { name: 'Save permissions' }).click();
   await expect(page.getByRole('status')).toContainText('permissions were replaced atomically');
 
-  await navigation.getByRole('button', { name: /ADM-USER/ }).click();
+  await navigation.locator('[data-screen-code="ADM-USER"]').click();
   await expect(page.getByRole('heading', { name: 'Users & Assignments' })).toBeVisible();
   await page.getByRole('button', { name: '+ New' }).click();
   await page.getByLabel('Name').fill('E2E Location Auditor');
@@ -69,10 +69,10 @@ test('ERP Administrator provisions plant foundation data and effective user auth
   await expect(page.getByRole('status')).toContainText('Invitation accepted');
   await login(page, 'e2e.location.auditor@qtfoods.local', 'E2eTemporary123');
   await expect(page.getByRole('heading', { name: 'Plant Locations' })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Authorised ERP modules' })
-    .getByRole('button', { name: /ADM-LOC/ })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Authorised ERP modules' })
-    .getByRole('button', { name: /ADM-USER/ })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Main menu' })
+    .locator('[data-screen-code="ADM-LOC"]')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main menu' })
+    .locator('[data-screen-code="ADM-USER"]')).toHaveCount(0);
 });
 
 async function login(page: Page, email: string, password: string): Promise<void> {

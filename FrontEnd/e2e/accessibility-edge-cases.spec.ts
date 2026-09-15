@@ -22,20 +22,20 @@ test('identity entry and context selection are keyboard operable and pass WCAG A
   const context = page.getByRole('button', { name: /Training Plant/ });
   await context.focus();
   await page.keyboard.press('Enter');
-  await expect(page.locator('.content .crumb')).toContainText('WRK-HOME');
+  await expect(page.locator('.page-head[data-screen-code="WRK-HOME"]')).toBeVisible();
 });
 
 test('every routed administrator screen passes automated WCAG A/AA checks', async ({ page }) => {
   test.setTimeout(420_000);
   await loginAndSelect(page, 'admin.user@qtfoods.local');
 
-  const navigation = page.getByRole('navigation', { name: 'Authorised ERP modules' });
-  await expect(navigation.locator('button')).toHaveCount(businessScreens.length);
+  const navigation = page.getByRole('navigation', { name: 'Main menu' });
+  await expect(navigation.locator('[data-screen-code]')).toHaveCount(businessScreens.length);
   await expectNoAccessibilityViolations(page, 'application shell');
 
   for (const screen of businessScreens) {
     await page.evaluate((code) => { window.location.hash = code; }, screen.code);
-    await expect(page.locator('.content .crumb')).toContainText(screen.code);
+    await expect(page.locator(`.page-head[data-screen-code="${screen.code}"]`)).toBeVisible();
     await page.waitForLoadState('networkidle');
     await expectNoAccessibilityViolations(page, screen.code, '.content');
   }
@@ -50,16 +50,16 @@ test('unauthorised deep links stay fail closed and context cancellation preserve
 
   await page.evaluate(() => { window.location.hash = 'ADM-ROLE?record=00000000-0000-4000-8000-000000000000'; });
   await expect(page).toHaveURL(/#WRK-HOME$/);
-  await expect(page.getByRole('navigation', { name: 'Authorised ERP modules' }).getByRole('button', { name: /ADM-ROLE/ })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Main menu' }).locator('[data-screen-code="ADM-ROLE"]')).toHaveCount(0);
   expect(adminRequests).toEqual([]);
 
-  await page.getByRole('navigation', { name: 'Authorised ERP modules' }).getByRole('button', { name: /CRM-LEAD/ }).click();
-  await expect(page.locator('.content .crumb')).toContainText('CRM-LEAD');
+  await page.getByRole('navigation', { name: 'Main menu' }).locator('[data-screen-code="CRM-LEAD"]').click();
+  await expect(page.locator('.page-head[data-screen-code="CRM-LEAD"]')).toBeVisible();
   await page.locator('.context-button').click();
   await expect(page.getByRole('heading', { name: 'Choose where you are working' })).toBeVisible();
   await page.getByRole('button', { name: 'Return to workspace' }).click();
   await expect(page).toHaveURL(/#CRM-LEAD$/);
-  await expect(page.locator('.content .crumb')).toContainText('CRM-LEAD');
+  await expect(page.locator('.page-head[data-screen-code="CRM-LEAD"]')).toBeVisible();
 });
 
 test('responsive navigation and account-security dialog preserve keyboard focus', async ({ page }) => {
@@ -78,7 +78,7 @@ test('responsive navigation and account-security dialog preserve keyboard focus'
   await expect(menu).toHaveAttribute('aria-expanded', 'false');
   await menu.click();
   await expect(menu).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByLabel('Search authorised modules')).toBeFocused();
+  await expect(page.getByLabel('Search menu')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(menu).toHaveAttribute('aria-expanded', 'false');
   await expect(menu).toBeFocused();
@@ -104,7 +104,7 @@ async function loginAndSelect(page: Page, email: string): Promise<void> {
   await page.getByLabel('Password').fill('prototype');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByRole('button', { name: /Training Plant/ }).click();
-  await expect(page.locator('.content .crumb')).toContainText('WRK-HOME');
+  await expect(page.locator('.page-head[data-screen-code="WRK-HOME"]')).toBeVisible();
 }
 
 async function expectNoAccessibilityViolations(page: Page, label: string, include?: string): Promise<void> {

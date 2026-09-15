@@ -46,6 +46,49 @@ final class AuthenticationFlowTest extends TestCase
             ->assertJsonPath('error.code', 'FORBIDDEN');
     }
 
+    public function test_seeded_manager_roles_receive_only_their_approved_workspaces(): void
+    {
+        $this->seed();
+        $context = [
+            'erp.company_id' => '00000000-0000-4000-8000-000000000001',
+            'erp.plant_id' => '00000000-0000-4000-8000-000000000101',
+        ];
+        $contracts = [
+            'operations.user@qtfoods.local' => [
+                'role' => 'OPERATIONS_MANAGER',
+                'screen_count' => 42,
+                'visible' => ['WRK-HOME', 'PUR-REQ', 'INV-STK', 'PRO-ORDER', 'QC-SAFE', 'DSP-PICK'],
+                'hidden' => ['ADM-USER', 'FIN-GL', 'HR-PAY', 'CRM-ORDER', 'PORTAL-EXT'],
+                'denied_action' => 'ACTION:FIN-GL:JOURNAL-POST',
+            ],
+            'finance.user@qtfoods.local' => [
+                'role' => 'FINANCE_REVIEWER',
+                'screen_count' => 24,
+                'visible' => ['WRK-HOME', 'PUR-REQ', 'FIN-AP', 'FIN-GL', 'BI-REP', 'OPT-PLAN'],
+                'hidden' => ['ADM-USER', 'INV-STK', 'PRO-ORDER', 'QC-SAFE', 'CRM-ORDER', 'PORTAL-EXT'],
+                'denied_action' => 'ACTION:PRO-ORDER:RELEASE',
+            ],
+        ];
+
+        foreach ($contracts as $email => $contract) {
+            $user = User::query()->where('email', $email)->firstOrFail();
+            $payload = $this->actingAs($user)->withSession($context)
+                ->getJson('/api/v1/me')
+                ->assertOk()
+                ->json('data');
+
+            self::assertSame([$contract['role']], $payload['roles'], $email);
+            self::assertCount($contract['screen_count'], $payload['allowed_screens'], $email);
+            foreach ($contract['visible'] as $screen) {
+                self::assertContains($screen, $payload['allowed_screens'], "{$email} should see {$screen}.");
+            }
+            foreach ($contract['hidden'] as $screen) {
+                self::assertNotContains($screen, $payload['allowed_screens'], "{$email} should not see {$screen}.");
+            }
+            self::assertNotContains($contract['denied_action'], $payload['allowed_actions'], $email);
+        }
+    }
+
     public function test_business_routes_require_context_selection(): void
     {
         $this->seed();

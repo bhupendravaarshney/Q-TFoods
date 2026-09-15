@@ -19,9 +19,9 @@ All local demo accounts use password `prototype`.
 | --- | --- | --- |
 | Sales Manager | `demo.user@qtfoods.local` | Training Plant |
 | Operations Manager | `operations.user@qtfoods.local` | Training Plant |
-| Finance Reviewer | `finance.user@qtfoods.local` | Both plants |
+| Finance Manager | `finance.user@qtfoods.local` | Both plants |
 | ERP Administrator | `admin.user@qtfoods.local` | Both plants |
-| North Market Partner Portal | `partner.user@qtfoods.local` | Training Plant / North Market tenant |
+| Partner User | `partner.user@qtfoods.local` | Training Plant / North Market tenant |
 
 These credentials are seeded development data and must not be used outside a local environment.
 
@@ -71,7 +71,7 @@ npm run test:quality:dynamic
 
 The browser suite requires Docker. It builds a separate backend at `127.0.0.1:18000`, starts the frontend at `127.0.0.1:4173`, migrates and seeds isolated PostgreSQL, Redis, and private MinIO storage, runs the real queue worker and scheduler, and removes all disposable volumes after the run. It never resets the normal development stack. `test:e2e:a11y` runs the focused four-test accessibility and browser-edge subset; it audits WCAG A/AA rules across login, context selection, both shell layouts, the security dialog, and every registered business screen.
 
-The current verified baseline is 97 Vitest component tests and 22 live Chromium workflows, plus a clean production type-check/build.
+The current verified baseline is 100 Vitest component tests and 22 live Chromium workflows, plus a clean production type-check/build.
 
 The two quality commands require Docker. The repository command scans source, dependency manifests, configuration, and all three production backend image targets with pinned Trivy. The dynamic command uses its own disposable Compose project for the authenticated k6 threshold test and ZAP active API scan. Gate scope, exact thresholds, reports, CI behavior, and the required independent pre-release penetration/capacity work are documented in [`../quality/README.md`](../quality/README.md).
 
