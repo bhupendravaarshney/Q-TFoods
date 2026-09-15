@@ -87,23 +87,24 @@ final class FinanceSupplementService
         $checksum = hash('sha256', $contents);
         $extension = strtolower($file->guessExtension() ?: $file->getClientOriginalExtension() ?: 'bin');
         $path = $data['company_id'].'/'.$data['plant_id'].'/'.substr($data['document_date'], 0, 4).'/'.Str::uuid().'.'.$extension;
+        $disk = (string) config('qtfoods.private_document_disk', 'private');
         $stored = false;
         try {
-            return DB::transaction(function () use ($file, $data, $checksum, $contents, $path, &$stored): array {
+            return DB::transaction(function () use ($file, $data, $checksum, $contents, $path, $disk, &$stored): array {
                 $namespace = 'finance.archive.upload';
                 if ($replay = $this->begin($namespace, $data + ['checksum' => $checksum, 'original_name' => $file->getClientOriginalName()])) return $replay;
                 if (DB::table('bill_archive_documents')->where('company_id', $data['company_id'])->where('sha256_checksum', $checksum)->exists()) throw ValidationException::withMessages(['file' => ['This document is already archived.']]);
                 $this->unique('bill_archive_documents', 'document_number', $data['document_number'], ['company_id' => $data['company_id']]);
                 if ($data['retain_until'] < $data['document_date']) throw ValidationException::withMessages(['retain_until' => ['Retention date cannot precede the document date.']]);
                 if (! empty($data['invoice_id']) && ! DB::table('invoices')->where('id', $data['invoice_id'])->where($this->scope($data))->exists()) throw ValidationException::withMessages(['invoice_id' => ['Invoice not found in the selected plant.']]);
-                Storage::disk('private')->put($path, $contents); $stored = true;
+                Storage::disk($disk)->put($path, $contents); $stored = true;
                 $id = (string) Str::uuid();
                 DB::table('bill_archive_documents')->insert(['id' => $id, 'company_id' => $data['company_id'], 'plant_id' => $data['plant_id'], 'document_number' => $data['document_number'], 'invoice_id' => $data['invoice_id'] ?? null, 'document_type' => $data['document_type'], 'original_name' => $file->getClientOriginalName(), 'storage_disk' => 'private', 'storage_path' => $path, 'mime_type' => $file->getMimeType() ?: 'application/octet-stream', 'size_bytes' => $file->getSize(), 'sha256_checksum' => $checksum, 'document_date' => $data['document_date'], 'retain_until' => $data['retain_until'], 'notes' => $this->nullable($data['notes'] ?? null), 'record_version' => 1, 'uploaded_by' => $data['actor_id'], 'created_at' => now(), 'updated_at' => now()]);
                 $result = $this->result('bill_archive_document', $id, 'ARCHIVED', 1, ['sha256_checksum' => $checksum, 'size_bytes' => $file->getSize()]);
                 $this->record('UPLOAD_BILL_ARCHIVE', 'finance.archive.uploaded', 'bill_archive_document', $id, $data, 1, ['document_type' => $data['document_type'], 'sha256_checksum' => $checksum], $result); $this->complete($namespace, $data, $result); return $result;
             }, 3);
         } catch (\Throwable $exception) {
-            if ($stored) Storage::disk('private')->delete($path);
+            if ($stored) Storage::disk($disk)->delete($path);
             throw $exception;
         }
     }

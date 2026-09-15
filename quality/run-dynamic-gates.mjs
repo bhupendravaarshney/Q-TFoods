@@ -12,6 +12,7 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const composeFile = resolve(repositoryRoot, 'BackEnd/docker-compose.e2e.yml');
 const resultsDirectory = resolve(repositoryRoot, 'quality-results');
 const authConfigPath = resolve(resultsDirectory, '.zap-auth.prop');
+const diagnosticsPath = resolve(resultsDirectory, 'stack-diagnostics.txt');
 const projectName = 'qtfoods-erp-quality';
 const healthUrl = 'http://127.0.0.1:18000/api/health';
 const apiUrl = 'http://127.0.0.1:18000';
@@ -46,6 +47,7 @@ function prepareResults() {
     'zap-report.html',
     'zap-report.json',
     'zap-report.md',
+    'stack-diagnostics.txt',
   ]) {
     rmSync(resolve(resultsDirectory, name), { force: true });
   }
@@ -164,29 +166,64 @@ async function createAuthenticatedZapConfig() {
   writeFileSync(authConfigPath, config, { encoding: 'utf8', mode: 0o644 });
 }
 
-function showFailureLogs() {
+function captureCompose(args, label) {
   try {
-    process.stderr.write('\nDynamic-quality Compose service state:\n');
-    process.stderr.write(compose(['ps', '--all'], true));
-  } catch {
-    process.stderr.write('Unable to collect the disposable quality-stack service state.\n');
+    return compose(args, true).trimEnd();
+  } catch (error) {
+    const output = [error?.stdout, error?.stderr]
+      .filter((value) => typeof value === 'string' && value.length > 0)
+      .join('\n')
+      .trimEnd();
+    const reason = error instanceof Error ? error.message : String(error);
+    return [`Unable to collect ${label}: ${reason}`, output].filter(Boolean).join('\n');
   }
+}
 
-  try {
-    process.stderr.write('\nDynamic-quality Compose service logs:\n');
-    process.stderr.write(compose(['logs', '--no-color', '--tail', '300'], true));
-  } catch {
-    process.stderr.write('Unable to collect the disposable quality-stack logs.\n');
-  }
+function saveFailureDiagnostics() {
+  const diagnostics = [
+    `Captured: ${new Date().toISOString()}`,
+    '',
+    '$ docker compose ps -a',
+    captureCompose(['ps', '-a'], 'dynamic-quality Compose service state'),
+    '',
+    '$ docker compose logs --no-color --tail 500',
+    captureCompose(['logs', '--no-color', '--tail', '500'], 'dynamic-quality Compose service logs'),
+    '',
+  ].join('\n');
+
+  writeFileSync(diagnosticsPath, diagnostics, 'utf8');
+  process.stderr.write(`Dynamic-quality stack diagnostics saved to ${diagnosticsPath}.\n`);
 }
 
 async function main() {
   prepareResults();
-  stopStack();
   let failed = false;
 
   try {
-    compose(['up', '--detach', '--build', '--force-recreate', '--remove-orphans', 'app', 'worker', 'scheduler']);
+    stopStack();
+    compose([
+      'up',
+      '--detach',
+      '--force-recreate',
+      '--remove-orphans',
+      '--wait',
+      '--wait-timeout',
+      '120',
+      'postgres',
+      'redis',
+    ]);
+    compose(['up', '--detach', '--build', '--force-recreate', '--no-deps', 'migrate']);
+    compose(['wait', 'migrate']);
+    compose([
+      'up',
+      '--detach',
+      '--build',
+      '--force-recreate',
+      '--no-deps',
+      'app',
+      'worker',
+      'scheduler',
+    ]);
     await waitForHealth();
 
     compose(['--profile', 'quality', 'run', '--rm', '--no-deps', 'k6']);
@@ -208,7 +245,7 @@ async function main() {
     );
   } catch (error) {
     failed = true;
-    showFailureLogs();
+    saveFailureDiagnostics();
     throw error;
   } finally {
     rmSync(authConfigPath, { force: true });

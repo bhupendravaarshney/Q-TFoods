@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 
 $backendRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $composeFile = Join-Path $backendRoot 'docker-compose.production.yml'
+$drillComposeFile = Join-Path $PSScriptRoot 'docker-compose.recovery-drill.yml'
 $suffix = [Guid]::NewGuid().ToString('N').Substring(0, 8)
 $project = "qtfoods-recovery-drill-$suffix"
 $snapshotId = "integration-$suffix"
@@ -29,13 +30,13 @@ function Invoke-Docker {
 function Invoke-Compose {
     param([Parameter(Mandatory)][string[]] $Arguments)
 
-    Invoke-Docker (@('compose', '--project-name', $project, '--file', $composeFile, '--profile', 'recovery') + $Arguments)
+    Invoke-Docker (@('compose', '--project-name', $project, '--file', $composeFile, '--file', $drillComposeFile, '--profile', 'recovery') + $Arguments)
 }
 
 function Invoke-ComposeCapture {
     param([Parameter(Mandatory)][string[]] $Arguments)
 
-    $output = & docker @('compose', '--project-name', $project, '--file', $composeFile, '--profile', 'recovery') @Arguments
+    $output = & docker @('compose', '--project-name', $project, '--file', $composeFile, '--file', $drillComposeFile, '--profile', 'recovery') @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Docker Compose command failed with exit code $LASTEXITCODE."
     }
@@ -49,7 +50,7 @@ function Invoke-ComposeExpectedFailure {
     $previousPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        $output = & docker @('compose', '--project-name', $project, '--file', $composeFile, '--profile', 'recovery') @Arguments 2>&1
+        $output = & docker @('compose', '--project-name', $project, '--file', $composeFile, '--file', $drillComposeFile, '--profile', 'recovery') @Arguments 2>&1
         $exitCode = $LASTEXITCODE
     }
     finally {
@@ -161,6 +162,9 @@ try {
     $env:AWS_ACCESS_KEY_ID = 'RECOVERYACCESS01'
     $env:AWS_SECRET_ACCESS_KEY = 'v7Z2m9Q4n8K5r1T6x3C0p2L8s4B6d9F1'
     $env:AWS_BUCKET = 'qtfoods-recovery-drill'
+    $env:AWS_DEFAULT_REGION = 'us-east-1'
+    $env:AWS_ENDPOINT = 'http://minio:9000'
+    $env:AWS_USE_PATH_STYLE_ENDPOINT = 'true'
     $env:QT_FRONTEND_URL = 'https://erp.recovery-drill.invalid'
     $env:QT_CORS_ALLOWED_ORIGINS = 'https://erp.recovery-drill.invalid'
     $env:MAIL_MAILER = 'smtp'

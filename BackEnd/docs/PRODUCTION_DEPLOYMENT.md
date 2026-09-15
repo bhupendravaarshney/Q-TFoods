@@ -1,6 +1,6 @@
 # Production deployment baseline
 
-This repository includes a separate production Compose stack. It builds a no-development-dependencies PHP-FPM image, runs it as `www-data`, exposes only Caddy on ports 80/443, obtains and persists TLS certificates automatically, and keeps PostgreSQL, Redis, and MinIO on the internal Compose network. It also emits JSON application logs, exposes token-protected Prometheus metrics, serves separate liveness/readiness probes, and schedules operational threshold checks. The normal `docker-compose.yml` remains a loopback-only local development stack.
+This repository includes a separate production Compose stack. It builds a no-development-dependencies PHP-FPM image, runs it as `www-data`, exposes only Caddy on ports 80/443, obtains and persists TLS certificates automatically, and keeps PostgreSQL and Redis on the internal Compose network. Private evidence, finance archive, and partner documents use an externally managed S3-compatible object-storage service; the production graph does not deploy or require MinIO. It also emits JSON application logs, exposes token-protected Prometheus metrics, serves separate liveness/readiness probes, and schedules operational threshold checks. The normal `docker-compose.yml` remains a loopback-only local development stack.
 
 The production stack is a single-host deployment baseline, not a high-availability design. The repository includes a tested backup/restore mechanism and recovery runbook, but do not treat it as launch-ready until the organisation has provisioned real secrets, scheduled encrypted off-host backups, connected monitoring/paging, run a target-environment restore, and formally approved its recovery objectives.
 
@@ -8,7 +8,8 @@ The production stack is a single-host deployment baseline, not a high-availabili
 
 - A Linux host with a supported Docker Engine and Docker Compose plugin.
 - Public DNS for the API host pointing to that host.
-- Inbound TCP 80/443 and UDP 443 allowed for Caddy and ACME; PostgreSQL, Redis, and MinIO must remain private.
+- Inbound TCP 80/443 and UDP 443 allowed for Caddy and ACME; PostgreSQL and Redis must remain private.
+- An approved externally managed S3-compatible provider with a pre-created private bucket, an exact HTTPS endpoint, TLS validation, versioning/retention controls where required, and private network or egress access from the application and recovery hosts.
 - An HTTPS frontend origin on the same site as the API, such as `https://erp.company.example` with `https://api.erp.company.example`. The session policy is deliberately `SameSite=Lax`.
 - SMTP credentials for a TLS-capable delivery service.
 - An absolute host backup path on approved encrypted/restricted storage, writable by UID/GID 65532, plus approved retention and recovery objectives before live data is accepted.
@@ -28,13 +29,15 @@ Generate the Laravel key from 32 cryptographically random bytes. One portable op
 docker run --rm php:8.5-cli php -r 'echo "base64:".base64_encode(random_bytes(32)).PHP_EOL;'
 ```
 
-Use independent random values for the Laravel key, PostgreSQL password, Redis password, MinIO root identity, MinIO application identity, SMTP password, metrics bearer token, and any outbox or alert signing secret. The stack provisions the `AWS_ACCESS_KEY_ID` as a dedicated MinIO application user; do not reuse `MINIO_ROOT_USER` for the application. Prefer injecting these values from the target platform's secret manager. The application checks minimum safety properties and known placeholders, but that cannot prove uniqueness, custody, or rotation.
+Use independent random values for the Laravel key, PostgreSQL password, object-storage application credentials, SMTP password, metrics bearer token, and any outbox or alert signing secret. Provision the object-storage bucket and least-privilege identity in the managed provider before deployment; Compose does not create provider accounts or buckets. Prefer injecting these values from the target platform's secret manager. The application checks minimum safety properties and known placeholders, but that cannot prove uniqueness, custody, rotation, provider-side retention, or encryption policy.
 
 Important relationships:
 
 - `APP_HOST` is a host name only, without a scheme, port, or path.
 - `QT_CORS_ALLOWED_ORIGINS` is an exact comma-separated HTTPS origin list without trailing slashes.
 - `QT_FRONTEND_URL` must match the public frontend used in invitation, verification, and reset links.
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET`, `AWS_ENDPOINT`, and `AWS_USE_PATH_STYLE_ENDPOINT` are provider-neutral S3-compatible settings. `AWS_ENDPOINT` must be the provider's exact HTTPS endpoint; do not put credentials, query parameters, or a bucket path in it.
+- Both Laravel `private` and `evidence` disks remain S3-backed and use the configured private bucket. `QT_PRIVATE_DOCUMENT_DISK=private`, `QT_EVIDENCE_DISK=evidence`, and `QT_READINESS_OBJECT_STORAGE=true` are enforced in production.
 - `MAIL_SCHEME=smtp` with `MAIL_REQUIRE_TLS=true` uses required STARTTLS; use `smtps` for implicit TLS where the provider requires it.
 - `QT_METRICS_TOKEN` is a dedicated random value of at least 32 characters. Give it only to the scraper and rotate it independently of user or integration credentials.
 - `QT_ALERT_TRANSPORT=log` emits alert-ready JSON to stderr. Set it to `http` only with an approved HTTPS `QT_ALERT_HTTP_ENDPOINT` and an independent `QT_ALERT_SIGNING_SECRET` of at least 32 characters.
@@ -44,7 +47,7 @@ Important relationships:
 
 The real production environment file is ignored by Git and excluded from the production Docker build context.
 
-The production Dockerfile and infrastructure services are digest-pinned to the versions verified with this repository. Review upstream release notes, update the digests deliberately, rebuild, and rerun the full verification suite as a controlled dependency change.
+The production Dockerfile and repository-owned infrastructure services are digest-pinned to the versions verified with this repository. The external object-storage provider is governed and versioned by its operator, so record its service configuration and control changes separately. Review upstream release notes, update repository digests deliberately, rebuild, and rerun the full verification suite as a controlled dependency change.
 
 ## Validate before starting
 
@@ -73,7 +76,7 @@ curl --fail https://api.erp.company.example/api/ready
 curl --fail --header "Authorization: Bearer $QT_METRICS_TOKEN" https://api.erp.company.example/api/metrics
 ```
 
-Startup ordering is deliberate: PostgreSQL, Redis, and MinIO become healthy; MinIO creates a private bucket and dedicated application user; the one-shot migration service re-runs the production guard and applies forward migrations; then PHP-FPM, the queue worker, scheduler, and TLS gateway start. The production stack never invokes `DatabaseSeeder`.
+Startup ordering is deliberate: PostgreSQL and Redis become healthy; the one-shot migration service re-runs the production guard and applies forward migrations; then PHP-FPM, the queue worker, scheduler, and TLS gateway start. The managed object-storage bucket and identity must already exist, and readiness remains false if that external dependency cannot be reached. The production stack never invokes `DatabaseSeeder`.
 
 Caddy redirects HTTP to HTTPS and persists ACME state in `caddy_data` and `caddy_config`. The application trusts only the immediate reverse proxy, validates the configured host, rejects insecure protected traffic, and adds HSTS, frame, MIME-sniffing, referrer, and browser-permission headers to secure responses.
 
@@ -97,9 +100,9 @@ Alert state is kept in Redis so unchanged alerts are suppressed until `QT_ALERT_
 
 ## Backup and recovery
 
-The opt-in `recovery` Compose profile builds an image with pinned PostgreSQL/Redis clients and a source-built, security-patched MinIO `mc`; it runs without root privileges or Linux capabilities. It creates atomic, checksummed PostgreSQL-plus-object snapshots, verifies exact inventories, enforces bounded retention, recreates the database during restore, makes the object bucket exact, and invalidates Redis operational state. The application command `qt:recovery:verify` then streams every database-backed evidence/archive/partner object and reconciles migrations, outbox state, and failed jobs.
+The opt-in `recovery` Compose profile builds an image with pinned PostgreSQL/Redis clients and a source-built, security-patched S3-compatible `mc` client; the client name does not require a MinIO server. It runs without root privileges or Linux capabilities, connects through the same generic `AWS_*` settings, creates atomic checksummed PostgreSQL-plus-object snapshots, verifies exact inventories, enforces bounded retention, recreates the database during restore, makes the object bucket exact, and invalidates Redis operational state. The application command `qt:recovery:verify` then streams every database-backed evidence/archive/partner object and reconciles migrations, outbox state, and failed jobs.
 
-Follow [`RECOVERY_RUNBOOK.md`](RECOVERY_RUNBOOK.md) for the write-stop boundary, protected-storage attestation, scheduled backup, exact destructive confirmation, exhaustive post-restore checks, queue/outbox decisions, application rollback, and drill evidence. The repeatable disposable drill is `deploy/recovery/verify-recovery.ps1`; it must never be substituted for a target-platform restore exercise and formal RPO/RTO approval.
+Follow [`RECOVERY_RUNBOOK.md`](RECOVERY_RUNBOOK.md) for the write-stop boundary, protected-storage attestation, scheduled backup, exact destructive confirmation, exhaustive post-restore checks, queue/outbox decisions, application rollback, and drill evidence. The repeatable disposable drill is `deploy/recovery/verify-recovery.ps1`; its separate test-only overlay uses an isolated object-store test double and must never be deployed or substituted for a restore exercise against the selected managed provider and formal RPO/RTO approval.
 
 ## Frontend release
 

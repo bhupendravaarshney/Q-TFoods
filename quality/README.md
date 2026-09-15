@@ -53,8 +53,11 @@ npm run test:quality:dynamic
 The repository gate writes Trivy JSON to `quality-results/` and retains built
 images in the local Docker cache. The dynamic gate owns only the fixed
 `qtfoods-erp-quality` Compose project: it removes that project's disposable
-volumes before and after the run, writes k6/ZAP reports to `quality-results/`,
-and never resets the normal development or `qtfoods-erp-e2e` projects.
+volumes before and after the run, uses an E2E-only private local Laravel disk
+instead of object storage, writes k6/ZAP reports to `quality-results/`, and
+never resets the normal development or `qtfoods-erp-e2e` projects. On failure it
+captures `docker compose ps -a` and the final 500 log lines in
+`quality-results/stack-diagnostics.txt` before teardown.
 
 The ZAP contract is deliberately non-destructive and bounded so it can run on
 every change. Keep its routes and input constraints aligned with the canonical

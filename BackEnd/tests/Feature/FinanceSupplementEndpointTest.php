@@ -25,7 +25,7 @@ final class FinanceSupplementEndpointTest extends TestCase
     private const EQUITY = '00000000-0000-4000-8000-000000002010';
     private const CASH = '00000000-0000-4000-8000-000000002001';
 
-    protected function setUp(): void { parent::setUp(); Storage::fake('private'); $this->seed(); $this->signIn(self::FINANCE); }
+    protected function setUp(): void { parent::setUp(); config()->set('qtfoods.private_document_disk', 'private'); Storage::fake('private'); $this->seed(); $this->signIn(self::FINANCE); }
 
     public function test_simulation_is_isolated_and_adjustment_legacy_and_opening_balances_post_governed_journals(): void
     {

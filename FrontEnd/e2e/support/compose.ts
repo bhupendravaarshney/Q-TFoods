@@ -1,12 +1,15 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectName = 'qtfoods-erp-e2e';
+const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const composeFile = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../../../BackEnd/docker-compose.e2e.yml'
 );
+const diagnosticsFile = resolve(frontendRoot, 'test-results/e2e-stack-diagnostics.txt');
 
 function compose(args: string[], capture = false): string {
   return execFileSync(
@@ -23,22 +26,76 @@ export function stopE2EStack(): void {
   compose(['down', '--volumes', '--remove-orphans']);
 }
 
+function captureCompose(args: string[], label: string): string {
+  try {
+    return compose(args, true).trimEnd();
+  } catch (error) {
+    const commandError = error as { stdout?: string; stderr?: string };
+    const output = [commandError.stdout, commandError.stderr]
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .join('\n')
+      .trimEnd();
+    const reason = error instanceof Error ? error.message : String(error);
+
+    return [`Unable to collect ${label}: ${reason}`, output].filter(Boolean).join('\n');
+  }
+}
+
+export function saveE2EStackDiagnostics(overwrite = true): void {
+  if (!overwrite && existsSync(diagnosticsFile)) return;
+
+  mkdirSync(dirname(diagnosticsFile), { recursive: true });
+  const diagnostics = [
+    `Captured: ${new Date().toISOString()}`,
+    '',
+    '$ docker compose ps -a',
+    captureCompose(['ps', '-a'], 'E2E Compose service state'),
+    '',
+    '$ docker compose logs --no-color --tail 500',
+    captureCompose(['logs', '--no-color', '--tail', '500'], 'E2E Compose service logs'),
+    '',
+  ].join('\n');
+
+  writeFileSync(diagnosticsFile, diagnostics, 'utf8');
+  process.stderr.write(`E2E stack diagnostics saved to ${diagnosticsFile}.\n`);
+}
+
 export async function startE2EStack(): Promise<void> {
-  stopE2EStack();
+  rmSync(diagnosticsFile, { force: true });
 
   try {
-    compose(['up', '--detach', '--build', '--force-recreate', '--remove-orphans']);
+    stopE2EStack();
+    compose([
+      'up',
+      '--detach',
+      '--force-recreate',
+      '--remove-orphans',
+      '--wait',
+      '--wait-timeout',
+      '120',
+      'postgres',
+      'redis',
+    ]);
+    compose(['up', '--detach', '--build', '--force-recreate', '--no-deps', 'migrate']);
+    compose(['wait', 'migrate']);
+    compose([
+      'up',
+      '--detach',
+      '--build',
+      '--force-recreate',
+      '--no-deps',
+      'app',
+      'worker',
+      'scheduler',
+    ]);
     await waitForHealth();
   } catch (error) {
+    saveE2EStackDiagnostics();
     try {
-      process.stderr.write('\nE2E Compose service state:\n');
-      process.stderr.write(compose(['ps', '--all'], true));
-      process.stderr.write('\nE2E Compose service logs:\n');
-      process.stderr.write(compose(['logs', '--no-color'], true));
-    } finally {
       stopE2EStack();
+    } finally {
+      throw error;
     }
-    throw error;
   }
 }
 

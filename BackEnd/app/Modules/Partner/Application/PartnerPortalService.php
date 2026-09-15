@@ -384,10 +384,11 @@ final class PartnerPortalService
         $checksum = hash('sha256', $contents);
         $extension = strtolower($file->guessExtension() ?: $file->getClientOriginalExtension() ?: 'bin');
         $path = 'partner/'.$data['company_id'].'/'.$data['plant_id'].'/'.$partyId.'/'.strtolower($direction).'/'.Str::uuid().'.'.$extension;
+        $disk = (string) config('qtfoods.private_document_disk', 'private');
         $stored = false;
 
         try {
-            return DB::transaction(function () use ($file, $direction, $partyId, $data, $contents, $checksum, $path, &$stored): array {
+            return DB::transaction(function () use ($file, $direction, $partyId, $data, $contents, $checksum, $path, $disk, &$stored): array {
                 $namespace = $direction === 'OUTBOUND' ? 'partner.document.publish' : 'partner.document.upload';
                 $idempotentData = $data + [
                     'direction' => $direction,
@@ -411,7 +412,7 @@ final class PartnerPortalService
                 }
                 $this->validateDocumentLinks($data, $partyId);
 
-                Storage::disk('private')->put($path, $contents);
+                Storage::disk($disk)->put($path, $contents);
                 $stored = true;
                 $documentId = (string) Str::uuid();
                 $now = now();
@@ -473,7 +474,7 @@ final class PartnerPortalService
             }, 3);
         } catch (\Throwable $exception) {
             if ($stored) {
-                Storage::disk('private')->delete($path);
+                Storage::disk($disk)->delete($path);
             }
             throw $exception;
         }

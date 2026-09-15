@@ -154,7 +154,11 @@ final class PartnerPortalController
             $viewer['permissions'],
         );
 
-        return Storage::disk((string) $document->storage_disk)->download(
+        $disk = (string) $document->storage_disk === 'private'
+            ? (string) config('qtfoods.private_document_disk', 'private')
+            : (string) $document->storage_disk;
+
+        return Storage::disk($disk)->download(
             (string) $document->storage_path,
             (string) $document->original_name,
             [

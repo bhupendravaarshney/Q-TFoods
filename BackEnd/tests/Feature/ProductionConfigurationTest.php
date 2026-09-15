@@ -170,6 +170,21 @@ final class ProductionConfigurationTest extends TestCase
         self::assertContains('QT_RECOVERY_OBJECT_LIMIT must be between 0 and 1000000; zero verifies every object.', $violations);
     }
 
+    public function test_production_private_storage_requires_s3_and_an_exact_https_endpoint(): void
+    {
+        $this->configureSafeProductionEnvironment();
+        config()->set([
+            'filesystems.disks.evidence.endpoint' => 'http://object-storage.internal',
+            'qtfoods.private_document_disk' => 'evidence_test',
+            'filesystems.disks.evidence_test.driver' => 'local',
+        ]);
+
+        $violations = app(ProductionEnvironmentGuard::class)->violations('production');
+
+        self::assertContains('AWS_ENDPOINT must be an exact HTTPS S3-compatible endpoint.', $violations);
+        self::assertContains('The production private-document disk must use the S3 driver.', $violations);
+    }
+
     private function configureSafeProductionEnvironment(): void
     {
         config()->set([
@@ -201,10 +216,13 @@ final class ProductionConfigurationTest extends TestCase
             'database.connections.pgsql.mask_bindings_in_exception_messages' => true,
             'database.redis.default.password' => 'R8w2K5z9N4f7T1q6',
             'qtfoods.evidence_disk' => 'evidence',
+            'qtfoods.private_document_disk' => 'private',
             'filesystems.disks.evidence.driver' => 's3',
             'filesystems.disks.evidence.key' => 'AKIA7X9C4N2Q8Z5M',
             'filesystems.disks.evidence.secret' => 'v7Z2m9Q4n8K5r1T6x3C0p2L8s4B6d9F1',
             'filesystems.disks.evidence.bucket' => 'qtfoods-evidence-production',
+            'filesystems.disks.evidence.endpoint' => 'https://objects.erp.secure.test',
+            'filesystems.disks.private.driver' => 's3',
             'mail.default' => 'smtp',
             'mail.mailers.smtp.scheme' => 'smtp',
             'mail.mailers.smtp.host' => 'smtp.secure.test',

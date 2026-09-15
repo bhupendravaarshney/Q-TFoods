@@ -217,7 +217,7 @@ jobs:
         working-directory: FrontEnd
         run: npx playwright install --with-deps chromium
 
-      - name: Run live PostgreSQL, Redis, MinIO, and Chromium suite
+      - name: Run live PostgreSQL, Redis, local private storage, and Chromium suite
         working-directory: FrontEnd
         run: npm run test:e2e
 
@@ -256,6 +256,7 @@ jobs:
             quality-results/zap-report.html
             quality-results/zap-report.json
             quality-results/zap-report.md
+            quality-results/stack-diagnostics.txt
           if-no-files-found: warn
           retention-days: 14
 

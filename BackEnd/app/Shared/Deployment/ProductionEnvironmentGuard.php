@@ -70,6 +70,10 @@ final class ProductionEnvironmentGuard
         $this->reject($violations, $this->unsafeSecret($this->config->get("filesystems.disks.{$evidenceDisk}.key"), 12), 'AWS_ACCESS_KEY_ID must be a non-placeholder credential of at least 12 characters.');
         $this->reject($violations, $this->unsafeSecret($this->config->get("filesystems.disks.{$evidenceDisk}.secret"), 24), 'AWS_SECRET_ACCESS_KEY must be a non-placeholder credential of at least 24 characters.');
         $this->reject($violations, trim((string) $this->config->get("filesystems.disks.{$evidenceDisk}.bucket")) === '', 'AWS_BUCKET must be configured.');
+        $this->reject($violations, $this->unsafeObjectStorageEndpoint($this->config->get("filesystems.disks.{$evidenceDisk}.endpoint")), 'AWS_ENDPOINT must be an exact HTTPS S3-compatible endpoint.');
+
+        $privateDocumentDisk = (string) $this->config->get('qtfoods.private_document_disk', 'private');
+        $this->reject($violations, $this->config->get("filesystems.disks.{$privateDocumentDisk}.driver") !== 's3', 'The production private-document disk must use the S3 driver.');
 
         $this->reject($violations, $this->config->get('mail.default') !== 'smtp', 'MAIL_MAILER must use the configured SMTP delivery transport.');
         $this->reject($violations, $this->unsafeMailConfiguration(), 'SMTP must use a non-placeholder host, authenticated credentials, and required TLS.');
@@ -161,6 +165,23 @@ final class ProductionEnvironmentGuard
         $proxies = array_values(array_filter(array_map('trim', explode(',', $value))));
 
         return $proxies === [] || array_intersect($proxies, ['*', '**', '0.0.0.0/0', '::/0']) !== [];
+    }
+
+    private function unsafeObjectStorageEndpoint(mixed $value): bool
+    {
+        if (! is_string($value) || trim($value) !== $value || $value === '' || $this->placeholder($value)) {
+            return true;
+        }
+
+        $parts = parse_url($value);
+
+        return ! is_array($parts)
+            || ($parts['scheme'] ?? null) !== 'https'
+            || empty($parts['host'])
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || isset($parts['query'])
+            || isset($parts['fragment']);
     }
 
     private function unsafeHosts(array $hosts): bool

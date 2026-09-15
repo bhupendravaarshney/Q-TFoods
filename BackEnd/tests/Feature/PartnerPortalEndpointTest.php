@@ -29,6 +29,7 @@ final class PartnerPortalEndpointTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config()->set('qtfoods.private_document_disk', 'private');
         Storage::fake('private');
         $this->seed();
         $this->signIn(self::PARTNER);

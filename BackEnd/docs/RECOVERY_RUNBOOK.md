@@ -1,6 +1,6 @@
 # Backup, restore, and disaster-recovery runbook
 
-This runbook covers the repository-owned single-host recovery baseline. PostgreSQL and the complete private MinIO bucket are the authoritative business record. Redis contains rebuildable sessions, queues, metrics, and alert state; it must not be restored beside an older database snapshot.
+This runbook covers the repository-owned single-host recovery baseline. PostgreSQL and the complete private bucket in the selected externally managed S3-compatible provider are the authoritative business record. Redis contains rebuildable sessions, queues, metrics, and alert state; it must not be restored beside an older database snapshot.
 
 The defaults declare a 24-hour recovery point objective (RPO), a four-hour recovery time objective (RTO), and 35-day local retention. They are policy inputs recorded in every snapshot, not guarantees. The service owner must approve them, schedule backups frequently enough to meet the RPO, measure drills against the RTO, and maintain an encrypted immutable off-host copy.
 
@@ -9,12 +9,12 @@ The defaults declare a 24-hour recovery point objective (RPO), a four-hour recov
 | State | Recovery treatment | Reason |
 | --- | --- | --- |
 | PostgreSQL | Custom-format logical dump; database is dropped, recreated, and restored | Authoritative relational business, audit, outbox, failed-job, and configuration state |
-| Entire MinIO application bucket | Byte-for-byte local mirror with SHA-256 inventory; restore removes extra target objects | Authoritative evidence, finance archive, and partner documents |
+| Entire managed S3-compatible application bucket | Byte-for-byte local mirror with SHA-256 inventory; restore removes extra target objects | Authoritative evidence, finance archive, and partner documents |
 | Redis databases REDIS_DB and REDIS_CACHE_DB | Flush after restore | Queue payloads, sessions, caches, metrics, and alert suppression can refer to state newer than the restored database |
 | Caddy caddy_data and caddy_config | Protect with the host/platform volume-backup facility | Certificate/account state is operationally useful but independent of the ERP snapshot |
 | Application/gateway images and protected environment | Retain immutable image tags and versioned secret/config custody outside the snapshot | A database snapshot must be paired with compatible release artifacts |
 
-The recovery tool refuses backup or restore unless an operator attests that gateway, app, worker, and scheduler are stopped. This short write outage creates one consistency boundary across PostgreSQL and MinIO. A no-downtime design requires target-platform PostgreSQL point-in-time recovery and versioned/replicated object storage, which are outside this single-host baseline.
+The recovery tool refuses backup or restore unless an operator attests that gateway, app, worker, and scheduler are stopped. This short write outage creates one consistency boundary across PostgreSQL and managed object storage. A no-downtime design requires target-platform PostgreSQL point-in-time recovery and versioned/replicated object storage, which are outside this single-host baseline.
 
 ## One-time preparation
 
@@ -37,6 +37,8 @@ sudo install -d -m 0700 -o 65532 -g 65532 /srv/qtfoods/backups
 ~~~
 
 The path must be on approved encrypted, access-restricted storage. Replicate completed snapshot directories off-host under a separate backup identity, preferably to immutable/versioned storage. Preserve all files exactly and run verify against the copied snapshot before accepting it. Monitor backup age and job failure externally; setting QT_BACKUP_STORAGE_PROTECTED=YES is a deliberate operator attestation, not an encryption mechanism.
+
+Provision the private object-storage bucket and least-privilege credentials through the managed provider. The recovery identity must have the list/read/write/delete permissions needed to create an exact snapshot and exact restore; restrict its custody and activation as a break-glass control. Configure the provider-neutral `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET`, `AWS_ENDPOINT`, and `AWS_USE_PATH_STYLE_ENDPOINT` values in the protected environment file. Provider-side encryption, versioning, immutability, lifecycle, audit logging, replication, and recovery access must be independently commissioned and evidenced.
 
 Build the recovery target with the release:
 
@@ -61,7 +63,7 @@ docker compose --env-file "$ENV_FILE" -f docker-compose.production.yml \
 docker compose --env-file "$ENV_FILE" -f docker-compose.production.yml ps
 ~~~
 
-Confirm the four writer services are stopped and no migration, administrative import, or one-off application container is running. Keep PostgreSQL, Redis, MinIO, and the completed minio-init dependency available. Then create the snapshot:
+Confirm the four writer services are stopped and no migration, administrative import, or one-off application container is running. Keep PostgreSQL and Redis available, and verify that the recovery host can reach the managed S3-compatible endpoint and private bucket. Then create the snapshot:
 
 ~~~bash
 QT_RECOVERY_WRITERS_STOPPED=YES \
@@ -112,7 +114,7 @@ Apply the approved retention independently to off-host copies. Never treat local
 Restore into an isolated project or host first. In-place production restore is a break-glass action requiring the incident commander, database owner, application owner, and a recorded snapshot choice.
 
 1. Start the RTO timer and preserve incident, alert, and current-state evidence.
-2. Confirm the target PostgreSQL database, MinIO bucket, Redis instance, backup mount, environment file, and IMAGE_TAG. Read manifest.json and select an application image compatible with its recorded migration.
+2. Confirm the target PostgreSQL database, managed S3-compatible bucket, Redis instance, backup mount, environment file, and IMAGE_TAG. Read manifest.json and select an application image compatible with its recorded migration.
 3. Stop and lock out gateway, app, worker, and scheduler. Confirm no one-off application or migration containers exist.
 4. Verify the chosen snapshot before any destructive command.
 5. If the current state is readable and policy permits, take a separately labelled safety snapshot.
@@ -134,7 +136,7 @@ docker compose --env-file "$ENV_FILE" -f docker-compose.production.yml \
   --profile recovery run --rm --no-deps recovery restore "$SNAPSHOT_ID"
 ~~~
 
-Restore drops and recreates only the configured non-reserved PostgreSQL database, restores the archive with error-on-first-failure, makes the configured MinIO bucket match the snapshot by removing extra objects, flushes both configured Redis logical databases, and changes restored PROCESSING outbox rows to RETRY while preserving their attempt counters and immutable delivery-attempt rows. A partial failure leaves traffic stopped and requires incident review; do not continue by hand-editing business tables.
+Restore drops and recreates only the configured non-reserved PostgreSQL database, restores the archive with error-on-first-failure, makes the configured managed object bucket match the snapshot by removing extra objects, flushes both configured Redis logical databases, and changes restored PROCESSING outbox rows to RETRY while preserving their attempt counters and immutable delivery-attempt rows. A partial failure leaves traffic stopped and requires incident review; do not continue by hand-editing business tables.
 
 Keep writers and public traffic stopped. Run the exhaustive application-level reconciliation with the compatible app image:
 
@@ -210,7 +212,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\deploy\recovery\verify-recovery.ps1
 ~~~
 
-It creates a unique Compose project and backup directory, applies all migrations, seeds only the disposable database, stores a database-backed object and in-flight outbox record, proves both confirmation gates, snapshots, introduces database/object/Redis residue, restores, runs the exhaustive verifier, and removes its containers, volumes, images, and backup directory.
+It creates a unique Compose project and backup directory, applies all migrations, seeds only the disposable database, stores a database-backed object and in-flight outbox record, proves both confirmation gates, snapshots, introduces database/object/Redis residue, restores, runs the exhaustive verifier, and removes its containers, volumes, images, and backup directory. The script explicitly adds `docker-compose.recovery-drill.yml`, whose isolated MinIO container is only a local test double. That overlay is not part of `docker-compose.production.yml`, is never a UAT/production dependency, and does not replace a managed-provider restore drill.
 
 Retain the following outside the recovered system:
 
@@ -222,4 +224,3 @@ Retain the following outside the recovered system:
 - named operators/approvers, defects, corrective actions, and next drill date.
 
 The repository drill demonstrates the mechanism. Production scheduling, encrypted off-host custody, alerting, capacity, geographic failure coverage, and formal RPO/RTO approval remain target-platform responsibilities.
-

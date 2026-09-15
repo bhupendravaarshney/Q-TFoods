@@ -123,7 +123,7 @@
 - `e2e/optimisation-planning.spec.ts` - live Operations-to-Finance-to-Operations input, recommendation, review, outcome, and completion Chromium workflow
 - `e2e/reporting-help.spec.ts` - live report snapshot/export plus requester-to-support-manager-to-requester Chromium workflow
 - `vitest.config.ts` and `playwright.config.ts` - component and browser runners
-- `../BackEnd/docker-compose.e2e.yml` - disposable PostgreSQL/Redis/MinIO/backend/worker/scheduler runtime
+- `../BackEnd/docker-compose.e2e.yml` - disposable PostgreSQL/Redis/backend/worker/scheduler runtime with private local evidence storage
 
 ## Shared code
 
