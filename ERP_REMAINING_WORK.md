@@ -4,26 +4,27 @@ Snapshot date: 2026-09-15
 
 ## Current position
 
-The agreed functional UAT scope remains implemented: all 71 routed screens are live, role-scoped navigation and API access are fail closed, and the sidebar uses user-friendly business names instead of visible screen codes. However, the current pushed release candidate is **RED and is not approved for UAT sign-off or production** because its required GitHub quality gate failed.
+The agreed functional UAT scope remains implemented: all 71 routed screens are live, role-scoped navigation and API access are fail closed, and the sidebar uses user-friendly business names instead of visible screen codes. The latest runtime-bearing release candidate has passed its complete required GitHub quality gate and is ready to enter controlled UAT. This automated result is not manual UAT sign-off or production approval; the target-platform, governance, recovery, identity, capacity, and independent-security actions below remain mandatory.
 
 ### Release evidence status
 
 | Evidence | Commit and date | Status |
 | --- | --- | --- |
 | Documented local checkpoint | `ad8e12ecf0fe509be264c3efcf108c42b412e04d`, 2026-09-15 | Historical local evidence only. This is the checkpoint associated with the recorded backend, frontend, E2E, k6, ZAP, recovery, and image results below; it is not acceptance evidence for a later commit. |
-| Current pushed candidate | `3127f305583bf07f98c784c1203812affab0dd7b`, GitHub Actions run `34972492880`, completed 2026-09-15 13:07 UTC | **RED / not releasable.** `Live browser workflows` and `Authenticated load and active API security` failed before their tests/scans ran because a fresh runner could no longer pull `minio/mc` from Docker Hub. No current k6 or ZAP report was produced. |
-| Local remediation candidate | Uncommitted working tree based on `3127f305583bf07f98c784c1203812affab0dd7b`, 2026-09-15 | **Locally green for the repaired paths, but not release evidence yet.** The full browser gate passes 22/22; the authenticated k6 gate passes 602/602 checks over 301 iterations with zero failed requests/drops (global p95 85.09 ms, p99 94.94 ms); ZAP reports no Medium/High findings (four Low and three Informational retained); all 104 frontend tests and the production build pass; and the new PHP Semgrep gate scans 193 files with zero blocking findings or scan errors. A complete GitHub aggregate is still required after commit/push. |
+| Superseded failed candidate | `a2a53fdf9d771c10f9ce92dd65faf8c0cc6d3882`, GitHub Actions run `34988134179`, completed 2026-09-15 15:28 UTC | **RED / superseded.** Backend, frontend, CodeQL, PHP SAST, and Trivy passed, but browser and authenticated dynamic gates failed before the remediation below. |
+| Verified implementation candidate | `32b35994bac8b4ed7909ec4ce10cca2dd551b484`, [GitHub Actions run `34997310882`](https://github.com/bhupendravaarshney/Q-TFoods/actions/runs/34997310882), completed 2026-09-15 16:53 UTC | **GREEN / Required quality gate passed.** Backend plus PostgreSQL concurrency, frontend tests/build/audit, both CodeQL analyses, PHP Semgrep SAST, Trivy repository/release-image scanning, all browser E2E workflows, and authenticated k6/ZAP passed. The retained `dynamic-quality-reports`, `trivy-security-reports`, and `semgrep-php-report` artifacts provide exact-SHA evidence. |
+| Supporting local verification | Candidate `32b35994bac8b4ed7909ec4ce10cca2dd551b484`, 2026-09-15 | Composer validation/audit pass; 182 fast backend tests / 10,046 assertions and 5 PostgreSQL integrity/concurrency tests / 31 assertions pass; npm audit, 104 frontend tests, and the production build pass; browser E2E passes 22/22 without MinIO; k6 passes 600/600 checks over 300 iterations with zero failed requests/drops (global p95 66.78 ms, p99 89.35 ms); ZAP has no Medium/High findings (four Low and three Informational); Semgrep scans 193 PHP files with zero findings/errors; and Trivy reports zero fixed High/Critical vulnerabilities, High/Critical misconfigurations, or secrets across the repository and all three production images. The isolated recovery drill also passed exact restore and verification (3.76-second backup, 5.45-second restore). |
 
-The failing runner log identified the shared root cause as `pull access denied for minio/mc`. This was masked locally by a previously cached Docker Hub image. The remediation uses the official Quay MinIO client release at the same pinned multi-platform digest, updates the artifact uploader from v5 to SHA-pinned v6/Node.js 24, prints Compose service state and logs on startup failure, aligns browser checks with user-friendly labels and nonvisual screen identifiers, and replaces inferred required fields with explicit per-command form schemas. A digest-pinned PHP-aware Semgrep job is now part of the required aggregate and retains its JSON report.
+The current infrastructure remediation removes MinIO, its bootstrap client, credentials, bucket variables, dependency, and volume from the disposable E2E graph. E2E uses the private local `evidence_test` Laravel disk and disables object-storage readiness only there. Browser and dynamic orchestrators now start PostgreSQL/Redis, run migration, start app/worker/scheduler, and wait for health in explicit stages; on failure they persist `docker compose ps -a` and the final 500 log lines before teardown. Production/UAT keep the `private` and `evidence` S3 disks, mandatory object-storage readiness, fail-closed HTTPS endpoint checks, generic `AWS_*` settings, and an externally managed provider. The destructive local recovery drill uses a separate test-only object-store overlay, so recovery evidence remains reproducible without making MinIO a production dependency.
 
 ### Senior QA audit remediation status
 
 | Audit finding | Current disposition |
 | --- | --- |
-| QA-001 / QA-002: E2E and dynamic environments fail to start | Root cause fixed and reproduced from a clean pull path; local browser 22/22 and k6/ZAP gates pass. Awaiting a new pushed GitHub run. |
+| QA-001 / QA-002: E2E and dynamic environments fail to start | **Fixed and independently rerun by CI.** MinIO dependency removed, startup staged, and pre-teardown diagnostics retained. Browser E2E and authenticated k6/ZAP passed in current-SHA run `34997310882`. |
 | QA-003: `main` is not protected | **Open external governance action.** Repository administration must require `Required quality gate`, restrict bypass/force-push authority, and assign failure ownership. |
 | QA-004: status documents contradicted CI | Corrected. Historical evidence, current pushed SHA, and local remediation evidence are now separately labelled. |
-| QA-005 / QA-006: no current DAST/load evidence | Local remediation artifacts now exist and pass policy; current release-SHA evidence still requires the post-push workflow artifacts. |
+| QA-005 / QA-006: no current DAST/load evidence | **Fixed for the current SHA.** Run `34997310882` passed authenticated k6/ZAP and retained the `dynamic-quality-reports` artifact. This remains a regression smoke/DAST baseline, not production-capacity or independent penetration-test certification. |
 | QA-007 / QA-008 / QA-009 | **Open release blockers:** independent penetration test, target backup/restore/RPO/RTO approval, production secrets/SMTP, and local-auth versus SSO/IdP commissioning. |
 | QA-010: deprecated artifact action runtime | Fixed in the workflow with SHA-pinned `actions/upload-artifact` v6. |
 | QA-011: no PHP-aware SAST | Fixed in the workflow with digest-pinned Semgrep, official PHP/security-audit policies, blocking-error enforcement, and retained JSON evidence. |
@@ -41,7 +42,7 @@ The unchecked boxes in the detailed tracker's "Completion definition for each sc
 
 - [ ] Name the service owner, platform owner, security owner, database owner, recovery owner, and on-call owner.
 - [ ] Provision the production Linux/Docker platform, image registry, durable storage, public frontend/API DNS, and HTTPS routing.
-- [ ] Confirm that only the gateway is publicly reachable; PostgreSQL, Redis, and MinIO must remain private.
+- [ ] Confirm that only the gateway is publicly reachable; PostgreSQL and Redis must remain private, and the externally managed S3-compatible endpoint must use approved private connectivity or controlled egress.
 - [ ] Decide whether the current single-host baseline meets the approved availability objective. If it does not, design and test the required high-availability and geographic-failure architecture.
 - [ ] Retain immutable application, gateway, and recovery image tags for rollback.
 
@@ -49,7 +50,7 @@ Completion evidence: approved architecture and ownership record, reachable HTTPS
 
 ### 2. Provision production configuration, secrets, and email delivery
 
-- [ ] Store the Laravel application key, PostgreSQL password, Redis password, separate MinIO root/application credentials, SMTP credentials, metrics token, and applicable outbox/alert signing secrets in the target secret manager.
+- [ ] Store the Laravel application key, PostgreSQL password, Redis password, managed object-storage credentials, SMTP credentials, metrics token, and applicable outbox/alert signing secrets in the target secret manager.
 - [ ] Establish access control, rotation, break-glass access, and audit ownership for every secret.
 - [ ] Replace every placeholder and example domain in the production environment without committing the resulting file.
 - [ ] Configure a TLS-capable production email service and verify invitation, email-verification, and password-reset delivery.
