@@ -25,11 +25,11 @@ describe('Multi-Plant Control workspace', () => {
     expect(screen.getByText('TRAINING-TO-FIN')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '+ New transfer' }));
-    const payload = screen.getByLabelText('New transfer command payload') as HTMLTextAreaElement;
-    expect(payload.value).toContain('route-1');
-    expect(payload.value).toContain('source-position-1');
-    expect(payload.value).toContain('destination-position-1');
-    await user.click(screen.getByRole('button', { name: 'Submit command' }));
+    expect((screen.getByLabelText('Transfer route') as HTMLSelectElement).value).toBe('route-1');
+    expect((screen.getByLabelText('Source stock position') as HTMLSelectElement).value).toBe('source-position-1');
+    expect((screen.getByLabelText('Destination stock position') as HTMLSelectElement).value).toBe('destination-position-1');
+    expect(screen.queryByRole('textbox', { name: /command payload/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(api.commandP2).toHaveBeenCalledWith(
       '/api/v1/scale/transfers',

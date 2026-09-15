@@ -23,7 +23,7 @@ test('partner portal publishes into one customer tenant and records receipt with
     mimeType: 'text/plain',
     buffer: Buffer.from('Private tenant document for the partner portal E2E workflow.\n'),
   });
-  await page.getByRole('button', { name: 'Submit command' }).click();
+  await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('status')).toContainText('Outbound document published privately.');
   await expect(page.locator('.requisition-table tbody tr').filter({ hasText: DOCUMENT_NUMBER })).toBeVisible();
   await logout(page);
@@ -47,7 +47,7 @@ test('partner portal publishes into one customer tenant and records receipt with
   await page.getByRole('button', { name: 'Acknowledge', exact: true }).click();
   await page.getByLabel('Acknowledgement reference').fill(ACKNOWLEDGEMENT_REFERENCE);
   await expect(page.getByText('It does not approve an order, claim, invoice, or internal workflow.')).toBeVisible();
-  await page.getByRole('button', { name: 'Submit command' }).click();
+  await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('status')).toContainText('without internal approval effect');
   await expect(page.locator('.requisition-table tbody tr').filter({ hasText: DOCUMENT_NUMBER })).toContainText('ACKNOWLEDGED');
 

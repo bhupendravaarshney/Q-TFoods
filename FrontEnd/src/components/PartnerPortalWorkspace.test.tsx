@@ -31,7 +31,7 @@ describe('Partner Portal workspace', () => {
     expect(screen.getByLabelText('Partner claim shipment')).toHaveValue('shipment-1');
     expect(screen.getByLabelText('Partner claim shipment line')).toHaveValue('shipment-line-1');
     await user.type(screen.getByLabelText('Partner claim reason'), 'Delivered carton was visibly damaged.');
-    await user.click(screen.getByRole('button', { name: 'Submit command' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(api.commandP2).toHaveBeenCalledWith(
       '/api/v1/partner/claims',
@@ -53,7 +53,7 @@ describe('Partner Portal workspace', () => {
     await user.click(screen.getByRole('button', { name: '+ Publish document' }));
     await user.type(screen.getByLabelText('Partner document title'), 'September delivery packet');
     await user.upload(screen.getByLabelText('Partner private document'), new File(['private packet'], 'packet.pdf', { type: 'application/pdf' }));
-    await user.click(screen.getByRole('button', { name: 'Submit command' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.uploadP2).toHaveBeenCalledWith('/api/v1/partner/documents/publish', expect.any(FormData)));
     const published = api.uploadP2.mock.calls[0][1] as FormData;
     expect(published.get('party_id')).toBe('party-1');
@@ -70,7 +70,7 @@ describe('Partner Portal workspace', () => {
     await user.click(await screen.findByRole('button', { name: 'Open' }));
     await user.click(screen.getByRole('button', { name: 'Acknowledge' }));
     await user.type(screen.getByLabelText('Acknowledgement reference'), 'RECEIPT-UI-001');
-    await user.click(screen.getByRole('button', { name: 'Submit command' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.commandP2).toHaveBeenCalledWith(
       '/api/v1/partner/documents/document-1/acknowledge',
       { acknowledgement_reference: 'RECEIPT-UI-001' },

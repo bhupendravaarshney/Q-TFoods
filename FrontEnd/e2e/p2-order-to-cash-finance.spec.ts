@@ -13,7 +13,7 @@ test('P2 runs order-to-cash, finance simulation, private archive, and diagnostic
 
   await openP2Module(page, 'CRM-LEAD', 'Leads & Enquiries');
   await page.getByRole('button', { name: '+ New', exact: true }).click();
-  await submitJson(page, 'New lead', {
+  await submitForm(page, 'New lead', {
     lead_number: 'E2E-P2-LEAD-001',
     customer_party_id: CUSTOMER,
     company_name: 'North Market Distributor',
@@ -26,18 +26,18 @@ test('P2 runs order-to-cash, finance simulation, private archive, and diagnostic
     estimated_value: '25000',
     notes: 'Playwright P2 commercial journey.',
   });
-  await expect(page.getByRole('status')).toContainText('New lead completed (NEW)');
+  await expect(page.getByRole('status')).toContainText('New lead saved successfully. Current status: New.');
   await searchAndOpen(page, 'Leads & Enquiries', 'E2E-P2-LEAD-001');
   await page.getByRole('button', { name: 'Qualify', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Lead qualified');
   await page.getByRole('button', { name: 'Convert', exact: true }).click();
-  await submitJson(page, 'Convert lead', { customer_party_id: CUSTOMER });
-  await expect(page.getByRole('status')).toContainText('Convert lead completed (CONVERTED)');
+  await submitForm(page, 'Convert lead', { customer_party_id: CUSTOMER });
+  await expect(page.getByRole('status')).toContainText('Convert lead saved successfully. Current status: Converted.');
   const lead = first(await apiGet<P2List>(page, '/api/v1/sales/leads?q=E2E-P2-LEAD-001'));
 
   await openP2Module(page, 'CRM-ORDER', 'Sales Orders');
   await page.getByRole('button', { name: '+ New', exact: true }).click();
-  await submitJson(page, 'New sales order', {
+  await submitForm(page, 'New sales order', {
     order_number: 'E2E-P2-SO-001',
     customer_party_id: CUSTOMER,
     sales_lead_id: lead.id,
@@ -48,7 +48,7 @@ test('P2 runs order-to-cash, finance simulation, private archive, and diagnostic
     notes: 'Contract-backed browser order.',
     lines: [{ item_id: ITEM, uom_code: 'PACK', quantity: '2', discount_percent: '0' }],
   });
-  await expect(page.getByRole('status')).toContainText('New sales order completed (DRAFT)');
+  await expect(page.getByRole('status')).toContainText('New sales order saved successfully. Current status: Draft.');
   await searchAndOpen(page, 'Sales Orders', 'E2E-P2-SO-001');
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Sales order confirmed');
@@ -125,7 +125,7 @@ test('P2 runs order-to-cash, finance simulation, private archive, and diagnostic
 
   await openP2Module(page, 'FIN-SIM', 'Finance Simulation');
   await page.getByRole('button', { name: '+ New', exact: true }).click();
-  await submitJson(page, 'New simulation', {
+  await submitForm(page, 'New simulation', {
     simulation_number: 'E2E-P2-SIM-001',
     name: 'P2 browser margin scenario',
     description: 'An isolated browser-entered finance scenario.',
@@ -135,7 +135,7 @@ test('P2 runs order-to-cash, finance simulation, private archive, and diagnostic
       { account_id: EXPENSE_ACCOUNT, description: 'Projected expense', debit_amount: '200', credit_amount: '0', assumption: 'Incremental selling cost.' },
     ],
   });
-  await expect(page.getByRole('status')).toContainText('New simulation completed (DRAFT)');
+  await expect(page.getByRole('status')).toContainText('New simulation saved successfully. Current status: Draft.');
   await searchAndOpen(page, 'Finance Simulation', 'E2E-P2-SIM-001');
   await page.getByRole('button', { name: 'Run', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Simulation run completed with no ledger effect');
@@ -162,22 +162,22 @@ test('P2 runs order-to-cash, finance simulation, private archive, and diagnostic
 
   await openP2Module(page, 'FIN-SUP', 'Finance Support & Diagnostics');
   await page.getByRole('button', { name: '+ New', exact: true }).click();
-  await submitJson(page, 'New support & diagnostics', {
+  await submitForm(page, 'New support & diagnostics', {
     case_number: 'E2E-P2-FS-001',
     category: 'RECONCILIATION',
     severity: 'HIGH',
     subject: 'P2 browser diagnostic request',
     description: 'Capture finance counters without mutating ledger records.',
   });
-  await expect(page.getByRole('status')).toContainText('New support & diagnostics completed (OPEN)');
+  await expect(page.getByRole('status')).toContainText('New support & diagnostics saved successfully. Current status: Open.');
   await searchAndOpen(page, 'Finance Support & Diagnostics', 'E2E-P2-FS-001');
   await page.getByRole('button', { name: 'Diagnose', exact: true }).click();
-  await submitJson(page, 'Capture diagnostic snapshot', { notes: 'Browser verification captured the immutable counters.' });
-  await expect(page.getByRole('status')).toContainText('Capture diagnostic snapshot completed (DIAGNOSED)');
+  await submitForm(page, 'Capture diagnostic snapshot', { notes: 'Browser verification captured the immutable counters.' });
+  await expect(page.getByRole('status')).toContainText('Capture diagnostic snapshot saved successfully. Current status: Diagnosed.');
   await searchAndOpen(page, 'Finance Support & Diagnostics', 'E2E-P2-FS-001');
   await page.getByRole('button', { name: 'Close', exact: true }).click();
-  await submitJson(page, 'Close finance support case', { resolution_notes: 'P2 browser diagnostics verified.' });
-  await expect(page.getByRole('status')).toContainText('Close finance support case completed (CLOSED)');
+  await submitForm(page, 'Close finance support case', { resolution_notes: 'P2 browser diagnostics verified.' });
+  await expect(page.getByRole('status')).toContainText('Close finance support case saved successfully. Current status: Closed.');
 
   const financeScreens: Array<[string, string]> = [
     ['FIN-EXP', 'Employee Expenses'],
@@ -223,9 +223,45 @@ async function openModule(page: Page, code: string, heading: string): Promise<vo
   await expect(page.getByRole('heading', { name: heading })).toBeVisible();
 }
 
-async function submitJson(page: Page, label: string, body: unknown): Promise<void> {
-  await page.getByLabel(`${label} command payload`).fill(JSON.stringify(body, null, 2));
-  await page.getByRole('button', { name: 'Submit command' }).click();
+async function submitForm(page: Page, label: string, body: unknown): Promise<void> {
+  await expect(page.getByRole('heading', { name: label })).toBeVisible();
+  await fillFormValue(page, body, '');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+}
+
+async function fillFormValue(page: Page, value: unknown, path: string): Promise<void> {
+  if (Array.isArray(value)) {
+    const section = page.locator(`section[data-field-path="${path}"]`);
+    if (await section.count()) {
+      while (await section.locator('.p2-entry-line-card').count() < value.length) await section.getByRole('button', { name: /^\+ Add / }).click();
+      while (await section.locator('.p2-entry-line-card').count() > value.length) await section.locator('.p2-entry-line-card').last().getByRole('button', { name: 'Remove' }).click();
+    }
+    for (let index = 0; index < value.length; index += 1) await fillFormValue(page, value[index], `${path}.${index}`);
+    return;
+  }
+  if (value !== null && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) await fillFormValue(page, item, path ? `${path}.${key}` : key);
+    return;
+  }
+
+  const control = page.locator(`[data-field-path="${path}"]`);
+  if (!await control.count()) {
+    if (value === null) return;
+    throw new Error(`No form field was rendered for ${path}.`);
+  }
+  const details = await control.first().evaluate((element) => ({
+    tag: element.tagName.toLowerCase(),
+    type: element instanceof HTMLInputElement ? element.type : '',
+    readOnly: element instanceof HTMLInputElement ? element.readOnly : false,
+  }));
+  if (details.readOnly) return;
+  if (details.tag === 'select') { await control.first().selectOption(value === null ? '' : String(value)); return; }
+  if (details.type === 'checkbox') {
+    if (Boolean(value)) await control.first().check(); else await control.first().uncheck();
+    return;
+  }
+  const text = value === null ? '' : String(value);
+  await control.first().fill(details.type === 'datetime-local' ? text.replace(/Z$/, '').slice(0, 16) : text);
 }
 
 async function searchAndOpen(page: Page, title: string, text: string): Promise<void> {

@@ -5,6 +5,7 @@ import { useErpSession } from '../app/ErpSessionContext';
 import { PageHeader } from './PageHeader';
 import { StatusBadge } from './StatusBadge';
 import { SummaryStrip } from './ManufacturingWorkspaceShell';
+import { collectRequiredCommandPaths, StructuredCommandForm, validateStructuredCommand } from './StructuredCommandForm';
 
 export type P2Column = { label: string; key: string; format?: 'date' | 'money' | 'number' | 'text' };
 export type P2Collection = { key: string; label: string; columns: P2Column[]; detailPath?: (record: P2Record) => string; kind?: string; showStatus?: boolean };
@@ -34,7 +35,7 @@ export type GovernedP2Config = {
   resolveAction?: (action: string, record: P2Record, workspace: P2Workspace) => P2ActionSpec | null;
 };
 
-type EditorState = P2EditorSpec & { text: string };
+type EditorState = P2EditorSpec & { requiredPaths: string[] };
 type Feedback = { error: string | null; success: string | null; fields: Record<string, string> };
 
 export function GovernedP2Workspace({ config }: { config: GovernedP2Config }) {
@@ -85,18 +86,17 @@ export function GovernedP2Workspace({ config }: { config: GovernedP2Config }) {
     if (!workspace) return;
     const body = creator.template(workspace);
     setSelected(null); setFeedback(clear());
-    setEditor({ label: creator.label, help: creator.help, path: typeof creator.path === 'function' ? creator.path(workspace) : creator.path, expectedVersion: creator.expectedVersion?.(workspace), body, text: pretty(body) });
+    setEditor({ label: creator.label, help: creator.help, path: typeof creator.path === 'function' ? creator.path(workspace) : creator.path, expectedVersion: creator.expectedVersion?.(workspace), body, requiredPaths: collectRequiredCommandPaths(body) });
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault(); if (!editor) return;
-    let body: unknown;
-    try { body = JSON.parse(editor.text); }
-    catch { setFeedback({ error: 'The command payload is not valid JSON.', success: null, fields: { payload: 'Correct the JSON syntax before submitting.' } }); return; }
+    const fields = validateStructuredCommand(editor.body, editor.requiredPaths);
+    if (Object.keys(fields).length) { setFeedback({ error: 'Please correct the highlighted fields before saving.', success: null, fields }); return; }
     setBusy(true);
     try {
-      const result = await commandP2(editor.path, body, editor.expectedVersion);
-      setEditor(null); setSelected(null); setFeedback({ error: null, success: `${editor.label} completed (${result.status}).`, fields: {} });
+      const result = await commandP2(editor.path, editor.body, editor.expectedVersion);
+      setEditor(null); setSelected(null); setFeedback({ error: null, success: `${editor.label} saved successfully. Current status: ${label(result.status)}.`, fields: {} });
       await refresh();
     } catch (error) { setFailure(setFeedback, error, `Unable to complete ${editor.label.toLowerCase()}.`); }
     finally { setBusy(false); }
@@ -105,7 +105,7 @@ export function GovernedP2Workspace({ config }: { config: GovernedP2Config }) {
   async function act(action: string) {
     if (!selected || !workspace || !config.resolveAction) return;
     const spec = config.resolveAction(action, selected, workspace); if (!spec) return;
-    if ('editor' in spec) { const value = spec.editor; setEditor({ ...value, text: pretty(value.body) }); return; }
+    if ('editor' in spec) { const value = spec.editor; setFeedback(clear()); setEditor({ ...value, requiredPaths: collectRequiredCommandPaths(value.body) }); return; }
     if ('downloadPath' in spec) {
       setBusy(true);
       try { const blob = await downloadP2(spec.downloadPath); saveBlob(blob, spec.filename); setFeedback({ error: null, success: 'Private document downloaded after scope and permission verification.', fields: {} }); }
@@ -144,7 +144,7 @@ export function GovernedP2Workspace({ config }: { config: GovernedP2Config }) {
       <aside className="panel requisition-editor"><div className="requisition-detail-body">
         {feedback.error ? <div className="form-error" role="alert"><span>{feedback.error}</span></div> : null}
         {feedback.success ? <div className="form-success" role="status"><span />{feedback.success}</div> : null}
-        {editor ? <CommandEditor editor={editor} setEditor={setEditor} busy={busy} submit={submit} close={() => setEditor(null)} fields={feedback.fields} /> : selected ? <RecordDetail record={selected} busy={busy} onAction={act} /> : <Empty text={`Choose a ${collection?.label.toLowerCase() ?? 'record'} record${availableCreators.length ? ' or start a new governed command' : ''}.`} />}
+        {editor ? <CommandEditor editor={editor} setEditor={setEditor} workspace={workspace} busy={busy} submit={submit} close={() => setEditor(null)} fields={feedback.fields} /> : selected ? <RecordDetail record={selected} busy={busy} onAction={act} /> : <Empty text={`Choose a ${collection?.label.toLowerCase() ?? 'record'} record${availableCreators.length ? ' or create a new entry' : ''}.`} />}
       </div></aside>
     </div>
   </>;
@@ -155,8 +155,8 @@ function Register({ records, columns, showStatus, selectedId, onOpen }: { record
   return <div className="table-wrap"><table className="requisition-table p2-register"><thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}{showStatus ? <th>Status</th> : null}<th /></tr></thead><tbody>{records.map((record) => <tr key={`${record._kind}:${record.id}`} className={selectedId === record.id ? 'selected-row' : ''}>{columns.map((column) => <td key={column.key}>{renderValue(read(record, column.key), column.format)}</td>)}{showStatus ? <td><StatusBadge status={String(record.status ?? 'ARCHIVED')} /></td> : null}<td><button className="secondary compact-button" type="button" onClick={() => void onOpen(record)}>Open</button></td></tr>)}</tbody></table></div>;
 }
 
-function CommandEditor({ editor, setEditor, busy, submit, close, fields }: { editor: EditorState; setEditor: (value: EditorState) => void; busy: boolean; submit: (event: FormEvent) => void; close: () => void; fields: Record<string, string> }) {
-  return <form className="p2-command-editor" onSubmit={submit}><fieldset disabled={busy}><div className="detail-status"><StatusBadge status="DRAFT COMMAND" /><span>server validated</span></div><h3>{editor.label}</h3><p>{editor.help}</p><label>Command payload<textarea aria-label={`${editor.label} command payload`} aria-invalid={Boolean(fields.payload)} value={editor.text} onChange={(event) => setEditor({ ...editor, text: event.target.value })} rows={18} spellCheck={false} /></label>{fields.payload ? <small className="field-error">{fields.payload}</small> : null}<div className="callout">IDs and choices are prefilled from the selected company/plant lookups. Totals, status, stock, credit, periods, and approvals remain server-authoritative.</div><div className="form-actions"><button className="secondary" type="button" onClick={close}>Close</button><button className="primary" type="submit">Submit command</button></div></fieldset></form>;
+function CommandEditor({ editor, setEditor, workspace, busy, submit, close, fields }: { editor: EditorState; setEditor: (value: EditorState) => void; workspace: P2Workspace | null; busy: boolean; submit: (event: FormEvent) => void; close: () => void; fields: Record<string, string> }) {
+  return <form className="p2-command-editor" onSubmit={submit} noValidate><fieldset disabled={busy}><div className="detail-status"><StatusBadge status="DRAFT ENTRY" /><span>* Required fields</span></div><h3>{editor.label}</h3><p>{editor.help}</p><StructuredCommandForm value={editor.body} workspace={workspace} errors={fields} requiredPaths={editor.requiredPaths} onChange={(body) => setEditor({ ...editor, body })} /><div className="callout">Available choices come from your selected company and workplace. Totals, stock, credit, accounting periods, and approvals are checked automatically when you save.</div><div className="form-actions"><button className="secondary" type="button" onClick={close}>Close</button><button className="primary" type="submit">Save</button></div></fieldset></form>;
 }
 
 function RecordDetail({ record, busy, onAction }: { record: P2Record; busy: boolean; onAction: (action: string) => void }) {
@@ -164,7 +164,7 @@ function RecordDetail({ record, busy, onAction }: { record: P2Record; busy: bool
   const collections = Object.entries(record).filter(([, value]) => Array.isArray(value)) as [string, unknown[]][];
   const objects = Object.entries(record).filter(([key, value]) => !['allowed_actions'].includes(key) && value && typeof value === 'object' && !Array.isArray(value));
   return <div className="requisition-detail p2-detail"><div className="detail-status"><StatusBadge status={String(record.status ?? 'ARCHIVED')} />{record.record_version ? <span>record version {record.record_version}</span> : null}</div><dl className="control-definition">{facts.map(([key, value]) => <div key={key}><dt>{label(key)}</dt><dd>{renderValue(value, moneyKey(key) ? 'money' : key.includes('date') || key.endsWith('_at') ? 'date' : 'text')}</dd></div>)}</dl>
-    {objects.map(([key, value]) => <section className="p2-json-evidence" key={key}><h4>{label(key)}</h4><pre>{pretty(value)}</pre></section>)}
+    {objects.map(([key, value]) => <section className="p2-object-evidence" key={key}><h4>{label(key)}</h4><ObjectFacts value={value as Record<string, unknown>} /></section>)}
     {collections.map(([key, values]) => <section className="p2-related" key={key}><h4>{label(key)}</h4><RelatedRows values={values} /></section>)}
     {(record.allowed_actions?.length ?? 0) > 0 ? <div className="p2-action-grid">{record.allowed_actions!.map((action) => <button className={action.includes('CANCEL') || action.includes('REJECT') || action === 'CLOSE' ? 'secondary' : 'primary'} type="button" disabled={busy} key={action} onClick={() => onAction(action)}>{label(action)}</button>)}</div> : <div className="callout">This record is read-only in its current state or for your assigned role.</div>}
   </div>;
@@ -176,13 +176,18 @@ function RelatedRows({ values }: { values: unknown[] }) {
   return <div className="table-wrap"><table><thead><tr>{keys.map((key) => <th key={key}>{label(key)}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={String(row.id ?? index)}>{keys.map((key) => <td key={key}>{renderValue(row[key], moneyKey(key) ? 'money' : 'text')}</td>)}</tr>)}</tbody></table></div>;
 }
 
+function ObjectFacts({ value }: { value: Record<string, unknown> }) {
+  const facts = Object.entries(value).filter(([, item]) => item === null || ['string', 'number', 'boolean'].includes(typeof item));
+  const collections = Object.entries(value).filter(([, item]) => Array.isArray(item)) as [string, unknown[]][];
+  return <>{facts.length ? <dl className="control-definition">{facts.map(([key, item]) => <div key={key}><dt>{label(key)}</dt><dd>{renderValue(item, moneyKey(key) ? 'money' : key.includes('date') || key.endsWith('_at') ? 'date' : 'text')}</dd></div>)}</dl> : <div className="empty-state compact">No additional details were recorded.</div>}{collections.map(([key, items]) => <section className="p2-related" key={key}><h4>{label(key)}</h4><RelatedRows values={items} /></section>)}</>;
+}
+
 function Empty({ text }: { text: string }) { return <div className="empty-state">{text}</div>; }
 function read(record: P2Record, path: string): unknown { return path.split('.').reduce<unknown>((value, key) => value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined, record); }
 function workspacePath(workspace: P2Workspace | null, path: string): unknown { return path.split('.').reduce<unknown>((value, key) => value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined, workspace); }
 function label(value: string) { return value.toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ').replace(/\b\w/g, (character) => character.toUpperCase()); }
 function moneyKey(key: string) { return /(amount|cost|price|value|revenue|margin|debit|credit|rate)$/i.test(key); }
 function renderValue(value: unknown, format: P2Column['format'] = 'text'): ReactNode { if (value === null || value === undefined || value === '') return '—'; if (typeof value === 'object') return Array.isArray(value) ? `${value.length} records` : Object.values(value as Record<string, unknown>).filter((item) => typeof item === 'string').slice(0, 2).join(' · '); if (format === 'money') return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 6 }).format(Number(value) || 0); if (format === 'date') { const text = String(value); const parsed = new Date(text.length === 10 ? `${text}T00:00:00Z` : text); return Number.isNaN(parsed.valueOf()) ? text : new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(parsed); } if (typeof value === 'boolean') return value ? 'Yes' : 'No'; return String(value); }
-function pretty(value: unknown) { return JSON.stringify(value, null, 2); }
 function clear(): Feedback { return { error: null, success: null, fields: {} }; }
 function setFailure(setter: (value: Feedback) => void, error: unknown, fallback: string) { const api = isApiError(error) ? error : null; const fields: Record<string, string> = {}; Object.entries(api?.fields ?? {}).forEach(([key, values]) => { fields[key] = values[0] ?? ''; }); setter({ error: api?.message ?? (error instanceof Error ? error.message : fallback), success: null, fields }); }
 function saveBlob(blob: Blob, filename: string) { const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; document.body.append(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url); }

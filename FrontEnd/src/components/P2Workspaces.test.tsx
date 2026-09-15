@@ -54,8 +54,50 @@ describe('P2 commercial and finance workspaces', () => {
     api.listP2.mockResolvedValue({ ...emptyWorkspace(), lookups: { orders: [{ id: 'order-1', order_number: 'SO-UI-001', record_version: 7 }] }, allowed_actions: ['ALLOCATE'] });
     renderPage(<CommercialP2Workspace screen="DSP-PICK" />);
     await user.click(await screen.findByRole('button', { name: '+ New' }));
-    await user.click(screen.getByRole('button', { name: 'Submit command' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.commandP2).toHaveBeenCalledWith('/api/v1/dispatch/orders/order-1/allocations', expect.objectContaining({ allocation_number: expect.stringMatching(/^ALLOC-/) }), 7));
+  });
+
+  it('uses a labelled employee form and sends the same structured payroll payload', async () => {
+    const user = userEvent.setup();
+    api.listP2.mockResolvedValue({
+      ...emptyWorkspace(),
+      lookups: {
+        accounts: [
+          { id: 'expense-1', account_code: '6100', name: 'Payroll expense', account_type: 'EXPENSE' },
+          { id: 'payable-1', account_code: '2200', name: 'Payroll payable', account_type: 'LIABILITY' },
+        ],
+        employees: [],
+      },
+      allowed_actions: ['EMPLOYEE-CREATE'],
+    });
+    renderPage(<FinanceP2Workspace screen="HR-PAY" />);
+
+    await user.click(await screen.findByRole('button', { name: '+ New employee profile' }));
+    expect(screen.queryByText('Command payload')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /command payload/i })).not.toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText('Employee number'));
+    await user.type(screen.getByLabelText('Employee number'), 'EMP-UI-001');
+    await user.type(screen.getByLabelText('Name'), 'Packing Operator');
+    await user.type(screen.getByLabelText('Department'), 'Packing');
+    await user.clear(screen.getByLabelText('Monthly gross pay'));
+    await user.type(screen.getByLabelText('Monthly gross pay'), '50000');
+    await user.clear(screen.getByLabelText('Monthly deductions'));
+    await user.type(screen.getByLabelText('Monthly deductions'), '5000');
+    await user.selectOptions(screen.getByLabelText('Expense account'), 'expense-1');
+    await user.selectOptions(screen.getByLabelText('Payroll payable account'), 'payable-1');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(api.commandP2).toHaveBeenCalledWith('/api/v1/finance/employees', {
+      employee_number: 'EMP-UI-001',
+      name: 'Packing Operator',
+      department: 'Packing',
+      monthly_gross: '50000',
+      monthly_deductions: '5000',
+      expense_account_id: 'expense-1',
+      payable_account_id: 'payable-1',
+    }, undefined));
   });
 
   it('uploads an archive document as multipart private evidence', async () => {

@@ -266,13 +266,13 @@ function Related({ title, values: relatedValues }: { title: string; values: unkn
 }
 
 function PortalEditor({ editor, workspace, file, setFile, update, submit, close, busy }: { editor: Editor; workspace: PortalWorkspace | null; file: File | null; setFile: (file: File | null) => void; update: (field: string, value: string | string[]) => void; submit: (event: FormEvent) => void; close: () => void; busy: boolean }) {
-  return <form className="p2-command-editor p2-archive-form portal-command" onSubmit={submit}><fieldset disabled={busy}><div className="detail-status"><StatusBadge status="GOVERNED COMMAND" /><span>server validated</span></div><h3>{editor.title}</h3>
+  return <form className="p2-command-editor p2-archive-form portal-command" onSubmit={submit}><fieldset disabled={busy}><div className="detail-status"><StatusBadge status="NEW ENTRY" /><span>Checked when saved</span></div><h3>{editor.title}</h3>
     {(editor.kind === 'GRANT' || editor.kind === 'GRANT_UPDATE') ? <GrantFields editor={editor} workspace={workspace} update={update} /> : null}
     {(editor.kind === 'PUBLISH' || editor.kind === 'UPLOAD') ? <DocumentFields editor={editor} workspace={workspace} file={file} setFile={setFile} update={update} /> : null}
     {editor.kind === 'CLAIM' ? <ClaimFields editor={editor} workspace={workspace} update={update} /> : null}
     {editor.kind === 'ACKNOWLEDGE' ? <div className="form-grid"><label className="full-span">Acknowledgement reference<input aria-label="Acknowledgement reference" value={text(editor.draft.reference)} onChange={(event) => update('reference', event.target.value)} required minLength={3} /></label><div className="callout full-span">This records document receipt only. It does not approve an order, claim, invoice, or internal workflow.</div></div> : null}
     {(editor.kind === 'REVOKE' || editor.kind === 'WITHDRAW') ? <div className="form-grid"><label className="full-span">Reason<textarea aria-label={`${editor.title} reason`} rows={4} value={text(editor.draft.reason)} onChange={(event) => update('reason', event.target.value)} required minLength={3} /></label></div> : null}
-    <div className="form-actions"><button type="button" className="secondary" onClick={close}>Close</button><button type="submit" className="primary">Submit command</button></div>
+    <div className="form-actions"><button type="button" className="secondary" onClick={close}>Close</button><button type="submit" className="primary">Save</button></div>
   </fieldset></form>;
 }
 

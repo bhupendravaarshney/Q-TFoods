@@ -11,7 +11,7 @@ test('multi-plant scale separates source dispatch from destination receipt', asy
   await loginAndSelect(page, 'operations.user@qtfoods.local', 'Training Plant');
   await openScale(page);
   await page.getByRole('button', { name: '+ New transfer', exact: true }).click();
-  await submitJson(page, 'New transfer', {
+  await submitForm(page, 'New transfer', {
     transfer_number: TRANSFER_NUMBER,
     plant_transfer_route_id: ROUTE,
     transfer_date: '2026-09-15',
@@ -25,7 +25,7 @@ test('multi-plant scale separates source dispatch from destination receipt', asy
       notes: 'Three released packs.',
     }],
   });
-  await expect(page.getByRole('status')).toContainText('New transfer completed (DRAFT)');
+  await expect(page.getByRole('status')).toContainText('New transfer saved successfully. Current status: Draft.');
   await searchAndOpen(page, TRANSFER_NUMBER);
   await page.getByRole('button', { name: 'Submit', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Transfer submitted for independent source approval');
@@ -78,9 +78,44 @@ async function openScale(page: Page): Promise<void> {
   await expect(page.locator('.p2-live-notice')).toBeVisible();
 }
 
-async function submitJson(page: Page, label: string, body: unknown): Promise<void> {
-  await page.getByLabel(`${label} command payload`).fill(JSON.stringify(body, null, 2));
-  await page.getByRole('button', { name: 'Submit command' }).click();
+async function submitForm(page: Page, label: string, body: unknown): Promise<void> {
+  await expect(page.getByRole('heading', { name: label })).toBeVisible();
+  await fillFormValue(page, body, '');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+}
+
+async function fillFormValue(page: Page, value: unknown, path: string): Promise<void> {
+  if (Array.isArray(value)) {
+    const section = page.locator(`section[data-field-path="${path}"]`);
+    if (await section.count()) {
+      while (await section.locator('.p2-entry-line-card').count() < value.length) await section.getByRole('button', { name: /^\+ Add / }).click();
+      while (await section.locator('.p2-entry-line-card').count() > value.length) await section.locator('.p2-entry-line-card').last().getByRole('button', { name: 'Remove' }).click();
+    }
+    for (let index = 0; index < value.length; index += 1) await fillFormValue(page, value[index], `${path}.${index}`);
+    return;
+  }
+  if (value !== null && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) await fillFormValue(page, item, path ? `${path}.${key}` : key);
+    return;
+  }
+  const control = page.locator(`[data-field-path="${path}"]`);
+  if (!await control.count()) {
+    if (value === null) return;
+    throw new Error(`No form field was rendered for ${path}.`);
+  }
+  const details = await control.first().evaluate((element) => ({
+    tag: element.tagName.toLowerCase(),
+    type: element instanceof HTMLInputElement ? element.type : '',
+    readOnly: element instanceof HTMLInputElement ? element.readOnly : false,
+  }));
+  if (details.readOnly) return;
+  if (details.tag === 'select') { await control.first().selectOption(value === null ? '' : String(value)); return; }
+  if (details.type === 'checkbox') {
+    if (Boolean(value)) await control.first().check(); else await control.first().uncheck();
+    return;
+  }
+  const text = value === null ? '' : String(value);
+  await control.first().fill(details.type === 'datetime-local' ? text.replace(/Z$/, '').slice(0, 16) : text);
 }
 
 async function searchAndOpen(page: Page, text: string): Promise<void> {
