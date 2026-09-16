@@ -5,6 +5,10 @@ const RAW_ITEM = '00000000-0000-4000-8000-000000000603';
 const WESTERN_SUPPLIER = '00000000-0000-4000-8000-000000000503';
 const DECCAN_SUPPLIER = '00000000-0000-4000-8000-000000000504';
 
+function dateFromToday(days: number): string {
+  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+}
+
 test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles supplier stock', async ({ page }) => {
   test.setTimeout(180_000);
 
@@ -122,7 +126,7 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
   await editor.getByLabel('Bank reference').fill('UTR-E2E-P2P-001');
   await editor.getByRole('button', { name: 'Post payment' }).click();
   await expect(editor.getByRole('status')).toContainText('Payment posted and allocated');
-  await editor.getByLabel('Statement date').fill('2026-09-12');
+  await editor.getByLabel('Statement date').fill(dateFromToday(0));
   await editor.getByLabel('Statement reference').fill('STMT-E2E-P2P-001');
   await editor.getByLabel('Notes').fill('Bank statement UTR and value date agree.');
   await editor.getByRole('button', { name: 'Reconcile payment' }).click();
@@ -138,7 +142,7 @@ test('procure-to-pay receives, inspects, returns, matches, pays, and reconciles 
 async function createIssuedPurchaseOrder(page: Page): Promise<{ purchaseOrderId: string; purchaseOrderLineId: string }> {
   const requisition = await apiPost<{ data: { id: string } }>(page, '/api/v1/procurement/requisitions', {
     requisition_number: 'E2E-P2P-REQ-001', department: 'Manufacturing', purpose: 'Controlled procure-to-pay browser journey.',
-    requested_date: '2026-09-11', required_by_date: '2026-09-30', currency: 'INR',
+    requested_date: dateFromToday(0), required_by_date: dateFromToday(30), currency: 'INR',
     lines: [{ item_id: RAW_ITEM, quantity: '10', estimated_unit_cost: '50', notes: null }],
   });
   const submitted = await apiPost<{ data: { approval_request_id: string } }>(page, `/api/v1/procurement/requisitions/${requisition.data.id}/submit`, {}, 1);
@@ -150,20 +154,20 @@ async function createIssuedPurchaseOrder(page: Page): Promise<{ purchaseOrderId:
   await loginAndSelect(page, 'operations.user@qtfoods.local');
 
   const rfq = await apiPost<{ data: { id: string } }>(page, '/api/v1/procurement/rfqs', {
-    rfq_number: 'E2E-P2P-RFQ-001', requisition_id: requisition.data.id, response_due_date: '2026-09-15',
+    rfq_number: 'E2E-P2P-RFQ-001', requisition_id: requisition.data.id, response_due_date: dateFromToday(7),
     commercial_terms: 'Delivered INR pricing exclusive of recoverable GST.', supplier_ids: [WESTERN_SUPPLIER, DECCAN_SUPPLIER],
   });
   await apiPost(page, `/api/v1/procurement/rfqs/${rfq.data.id}/issue`, {}, 1);
   const detail = await apiGet<{ data: { lines: { id: string }[] } }>(page, `/api/v1/procurement/rfqs/${rfq.data.id}`);
   const quote = await apiPost<{ data: { quote_id: string } }>(page, `/api/v1/procurement/rfqs/${rfq.data.id}/quotes`, {
-    supplier_party_id: WESTERN_SUPPLIER, quote_number: 'WEST-E2E-P2P-QUOTE-001', quote_date: '2026-09-11',
-    valid_until: '2026-09-30', promised_delivery_date: '2026-09-25', payment_terms_days: 30,
+    supplier_party_id: WESTERN_SUPPLIER, quote_number: 'WEST-E2E-P2P-QUOTE-001', quote_date: dateFromToday(0),
+    valid_until: dateFromToday(30), promised_delivery_date: dateFromToday(21), payment_terms_days: 30,
     freight_amount: '0', other_charges: '0', discount_amount: '0', notes: null,
     lines: [{ rfq_line_id: detail.data.lines[0]!.id, unit_price: '40', notes: null }],
   }, 2);
   await apiPost(page, `/api/v1/procurement/rfqs/${rfq.data.id}/award`, { supplier_quote_id: quote.data.quote_id, award_reason: null }, 3);
   const order = await apiPost<{ data: { id: string } }>(page, '/api/v1/procurement/purchase-orders', {
-    po_number: 'E2E-P2P-PO-001', rfq_id: rfq.data.id, order_date: '2026-09-11', incoterm_code: 'DAP',
+    po_number: 'E2E-P2P-PO-001', rfq_id: rfq.data.id, order_date: dateFromToday(0), incoterm_code: 'DAP',
     delivery_terms: 'Deliver to the controlled receiving bay.', notes: null,
   });
   await apiPost(page, `/api/v1/procurement/purchase-orders/${order.data.id}/issue`, {}, 1);

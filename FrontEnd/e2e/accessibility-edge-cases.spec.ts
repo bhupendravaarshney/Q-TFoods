@@ -95,6 +95,24 @@ test('responsive navigation and account-security dialog preserve keyboard focus'
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(security).toBeFocused();
+
+  await page.evaluate(() => { window.location.hash = 'ADM-USER'; });
+  await expect(page.locator('.page-head[data-screen-code="ADM-USER"]')).toBeVisible();
+  await page.locator('.page-head .primary').click();
+
+  const editor = page.locator('.user-editor');
+  await expect(editor).toBeInViewport();
+  const scrollState = await page.locator('#erp-main-content').evaluate((content) => ({
+    clientHeight: content.clientHeight,
+    scrollHeight: content.scrollHeight,
+    scrollTop: content.scrollTop,
+  }));
+  expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+  expect(scrollState.scrollTop).toBeGreaterThan(0);
+
+  const finalAction = editor.getByRole('button', { name: 'Send invitation' });
+  await finalAction.scrollIntoViewIfNeeded();
+  await expect(finalAction).toBeInViewport();
 });
 
 async function loginAndSelect(page: Page, email: string): Promise<void> {
