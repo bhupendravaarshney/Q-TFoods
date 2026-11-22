@@ -1,4 +1,4 @@
-FROM php:8.5-fpm-bookworm@sha256:81b9c405b013ebda0c9b8cd7a1a61424cf3627ca96348d93752a9b0539ce9a25 AS app
+FROM php:8.6-fpm-bookworm@sha256:a836c00ddc6d873275d40437eb74732bde56781ead316b9eff42fa46dc6d93db AS app
 
 RUN apt-get update \
     && apt-get upgrade -y \

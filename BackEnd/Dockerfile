@@ -1,4 +1,4 @@
-FROM php:8.5-cli@sha256:9ebdf4c28ab12c02085e171c31e22ac5f7bbb6a9f6927e3bc3dfe7ee23df51e0
+FROM php:8.6-cli@sha256:d84acf3155d907afaa5afa9b9457c5f12016b6dc7ade84659f40cdc505cc087d
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends $PHPIZE_DEPS libpq-dev libsqlite3-dev unzip \
